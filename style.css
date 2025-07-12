@@ -1,0 +1,60 @@
+/* Custom Styles for Mihomo Config Generator */
+
+/* Vazirmatn Font Integration */
+body {
+    font-family: 'Vazirmatn', sans-serif;
+}
+
+/* Base styles for tab buttons */
+.tab-button {
+    /* Tailwind CSS classes applied directly in HTML:
+       py-2 px-4 text-sm font-medium text-gray-600 hover:text-blue-600 focus:outline-none
+    */
+    border-bottom: 2px solid transparent; /* Default transparent border */
+    transition: all 0.2s ease-in-out; /* Smooth transition for hover/active states */
+}
+
+/* Active tab style */
+.tab-active {
+    /* Tailwind CSS classes applied directly in HTML:
+       text-blue-600
+    */
+    border-color: #3B82F6; /* Tailwind blue-600 color */
+}
+
+/* RTL adjustment for list bullets */
+/* By default, dir="rtl" on html or body handles most of this,
+   but explicit control can be useful. */
+ul {
+    list-style-position: inside; /* Puts the bullet inside the content flow */
+}
+
+/* For Font Awesome icons with text, ensure proper spacing in RTL */
+/* This ensures the icon is to the right of the text in a RTL layout */
+.fas, .far, .fal, .fad, .fab {
+    margin-left: 0.5rem; /* Space after icon when text is on its left in RTL */
+    margin-right: unset; /* Remove default LTR margin-right if any */
+}
+
+/* Specific adjustments for select elements to fix arrow position in RTL */
+select {
+    /* Overriding default browser/Tailwind styling for select arrow in RTL */
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: left 0.75rem center; /* Moves arrow to the left for RTL */
+    background-size: 0.65em auto;
+    padding-left: 2.5rem; /* More padding on the left for the arrow */
+    padding-right: 0.75rem; /* Less padding on the right (text side) */
+}
+
+/* Adjust checkbox/radio button spacing for RTL */
+/* This helps align the checkbox/radio visually to the right of its label in RTL */
+input[type="checkbox"],
+input[type="radio"] {
+    margin-right: 0.5rem; /* Space after the checkbox/radio itself */
+    margin-left: unset;   /* Remove default LTR margin-left if any */
+}
+/* Ensure label is aligned with its corresponding checkbox/radio */
+label[for] {
+    margin-left: 0.25rem; /* Small space between input and label text */
+}
