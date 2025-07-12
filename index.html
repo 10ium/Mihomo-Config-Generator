@@ -13,6 +13,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
     <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/js-base64@3.7.5/base64.min.js"></script>
 
     <link rel="stylesheet" href="style.css">
 </head>
@@ -50,64 +52,139 @@
 
             <div v-if="currentTab === 'add-proxy'">
                 <h2 class="text-2xl font-bold text-gray-700 mb-4">افزودن پروکسی جدید</h2>
-                <div class="mb-4">
-                    <label for="select-protocol" class="block text-gray-700 text-sm font-bold mb-2">
-                        پروتکل را انتخاب کنید:
-                    </label>
-                    <select id="select-protocol" v-model="selectedProtocolName" @change="onProtocolChange"
-                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-                        <option value="" disabled>انتخاب کنید...</option>
-                        <option v-for="protocol in protocols" :key="protocol" :value="protocol">
-                            {{ protocol }}
-                        </option>
-                    </select>
+                
+                <div class="flex border-b border-gray-200 mb-6">
+                    <button @click="addProxyMethodTab = 'manual-entry'" :class="{'tab-active': addProxyMethodTab === 'manual-entry'}" class="tab-button text-base">
+                        <i class="fas fa-keyboard ml-2"></i>ورود دستی
+                    </button>
+                    <button @click="addProxyMethodTab = 'file-upload'" :class="{'tab-active': addProxyMethodTab === 'file-upload'}" class="tab-button text-base">
+                        <i class="fas fa-file-upload ml-2"></i>آپلود فایل
+                    </button>
+                    <button @click="addProxyMethodTab = 'link-input'" :class="{'tab-active': addProxyMethodTab === 'link-input'}" class="tab-button text-base">
+                        <i class="fas fa-link ml-2"></i>لینک / متن
+                    </button>
                 </div>
 
-                <div v-if="selectedProtocolName">
+                <div v-if="addProxyMethodTab === 'manual-entry'">
                     <div class="mb-4">
-                        <label class="block text-gray-700 text-sm font-bold mb-2">
-                            روش ورود جزئیات:
+                        <label for="select-protocol" class="block text-gray-700 text-sm font-bold mb-2">
+                            پروتکل را انتخاب کنید:
                         </label>
-                        <div class="flex items-center">
-                            <input type="radio" id="template-entry" value="template" v-model="entryMethod" class="ml-2">
-                            <label for="template-entry" class="ml-1">از تمپلت</label>
-                            <input type="radio" id="manual-entry" value="manual" v-model="entryMethod" class="mr-4 ml-2">
-                            <label for="manual-entry" class="ml-1">ورود دستی</label>
-                        </div>
+                        <select id="select-protocol" v-model="selectedProtocolName" @change="onProtocolChange"
+                            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                            <option value="" disabled>انتخاب کنید...</option>
+                            <option v-for="protocol in protocols" :key="protocol" :value="protocol">
+                                {{ protocol }}
+                            </option>
+                        </select>
                     </div>
 
-                    <div v-if="entryMethod === 'template'">
-                        <div v-if="proxyTemplates.length" class="mb-4">
-                            <label for="select-template" class="block text-gray-700 text-sm font-bold mb-2">
-                                تمپلت پروکسی را انتخاب کنید:
+                    <div v-if="selectedProtocolName">
+                        <div class="mb-4">
+                            <label class="block text-gray-700 text-sm font-bold mb-2">
+                                روش ورود جزئیات:
                             </label>
-                            <select id="select-template" v-model="selectedTemplate" @change="applyTemplate"
-                                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-                                <option value="" disabled>انتخاب کنید...</option>
-                                <option v-for="template in proxyTemplates" :key="template.name" :value="template">
-                                    {{ template.name }} - {{ template.description }}
-                                </option>
-                            </select>
+                            <div class="flex items-center">
+                                <input type="radio" id="template-entry" value="template" v-model="entryMethod" class="ml-2">
+                                <label for="template-entry" class="ml-1">از تمپلت</label>
+                                <input type="radio" id="manual-entry-radio" value="manual" v-model="entryMethod" class="mr-4 ml-2">
+                                <label for="manual-entry-radio" class="ml-1">ورود دستی</label>
+                            </div>
                         </div>
-                        <p v-else class="text-gray-600 mb-4">هیچ تمپلتی برای این پروتکل موجود نیست. لطفاً دستی وارد کنید.</p>
-                    </div>
 
-                    <div v-if="entryMethod === 'manual' || (entryMethod === 'template' && selectedTemplate)">
-                        <h3 class="text-xl font-semibold text-gray-800 mb-4">جزئیات پروکسی</h3>
-                        <div v-for="field in currentProtocolFields" :key="field.id" class="mb-4">
-                            <label :for="field.id" class="block text-gray-700 text-sm font-bold mb-2">
-                                {{ field.label }}
-                                <span v-if="field.required" class="text-red-500">*</span>
-                            </label>
-                            <input :type="field.type" :id="field.id" v-model="newProxy[field.id]"
-                                :placeholder="field.placeholder"
-                                class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                        <div v-if="entryMethod === 'template'">
+                            <div v-if="proxyTemplates.length" class="mb-4">
+                                <label for="select-template" class="block text-gray-700 text-sm font-bold mb-2">
+                                    تمپلت پروکسی را انتخاب کنید:
+                                </label>
+                                <select id="select-template" v-model="selectedTemplate" @change="applyTemplate"
+                                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                                    <option value="" disabled>انتخاب کنید...</option>
+                                    <option v-for="template in proxyTemplates" :key="template.name" :value="template">
+                                        {{ template.name }} - {{ template.description }}
+                                    </option>
+                                </select>
+                            </div>
+                            <p v-else class="text-gray-600 mb-4">هیچ تمپلتی برای این پروتکل موجود نیست. لطفاً دستی وارد کنید.</p>
                         </div>
-                        <button @click="addProxy" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
-                            <i class="fas fa-save ml-2"></i>افزودن پروکسی
-                        </button>
+
+                        <div v-if="entryMethod === 'manual' || (entryMethod === 'template' && selectedTemplate)">
+                            <h3 class="text-xl font-semibold text-gray-800 mb-4">جزئیات پروکسی</h3>
+                            <div v-for="field in filteredProtocolFields" :key="field.id" class="mb-4">
+                                <label :for="'manual-field-' + field.id" class="block text-gray-700 text-sm font-bold mb-2">
+                                    {{ field.label }}
+                                    <span v-if="field.required" class="text-red-500">*</span>
+                                </label>
+                                <input v-if="field.type === 'text' || field.type === 'number' || field.type === 'password'" 
+                                       :type="field.type" :id="'manual-field-' + field.id" v-model="newProxy[field.id]"
+                                       :placeholder="field.placeholder"
+                                       class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                                
+                                <textarea v-else-if="field.type === 'textarea'"
+                                          :id="'manual-field-' + field.id" v-model="newProxy[field.id]"
+                                          :placeholder="field.placeholder" rows="4"
+                                          class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"></textarea>
+                                
+                                <select v-else-if="field.type === 'select'"
+                                        :id="'manual-field-' + field.id" v-model="newProxy[field.id]"
+                                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                                    <option v-for="option in field.options" :key="option" :value="option">
+                                        {{ option }}
+                                    </option>
+                                </select>
+
+                                <div v-else-if="field.type === 'checkbox'" class="flex items-center mt-2">
+                                    <input type="checkbox" :id="'manual-field-' + field.id" v-model="newProxy[field.id]" class="ml-2">
+                                </div>
+                            </div>
+                            <button @click="addProxy" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                                <i class="fas fa-save ml-2"></i>افزودن پروکسی
+                            </button>
+                        </div>
                     </div>
                 </div>
+
+                <div v-if="addProxyMethodTab === 'file-upload'">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">آپلود فایل کانفیگ/لینک‌ها</h3>
+                    <div class="mb-4">
+                        <label for="file-upload" class="block text-gray-700 text-sm font-bold mb-2">
+                            فایل YAML، JSON یا متنی شامل لینک‌های پروکسی را انتخاب کنید:
+                        </label>
+                        <input type="file" id="file-upload" @change="handleFileUpload" accept=".yaml,.yml,.json,.txt"
+                            class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    </div>
+                    <p class="text-gray-600 text-sm mb-2">
+                        فایل‌های YAML/JSON می‌توانند شامل یک آبجکت MiHoMo کامل یا فقط لیست پروکسی‌ها باشند.
+                        فایل‌های متنی می‌توانند شامل لینک‌های اشتراک (مثلاً `socks5://...`) یا متن Base64 باشند.
+                    </p>
+                    <p v-if="detectedProxiesCount > 0" class="text-green-700 text-sm">
+                        <i class="fas fa-check-circle ml-1"></i>
+                        {{ detectedProxiesCount }} پروکسی شناسایی شد.
+                    </p>
+                </div>
+
+                <div v-if="addProxyMethodTab === 'link-input'">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">وارد کردن لینک یا متن</h3>
+                    <div class="mb-4">
+                        <label for="link-textarea" class="block text-gray-700 text-sm font-bold mb-2">
+                            لینک اشتراک پروکسی (Vmess, SS, SOCKS, HTTP و ...) یا متن Base64 را وارد کنید. (هر خط یک لینک/متن):
+                        </label>
+                        <textarea id="link-textarea" v-model="linkInput" rows="8"
+                            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                            placeholder="مثال:&#10;socks5://user:pass@server:port&#10;http://server2:port2&#10;vmess://eyJh...&#10;متن بیس64 شده..."></textarea>
+                    </div>
+                    <button @click="addProxiesFromLinkOrText" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                        <i class="fas fa-plus ml-2"></i>افزودن پروکسی‌ها
+                    </button>
+                    <p class="text-gray-600 text-sm mt-2 mb-2">
+                        برنامه به صورت خودکار فرمت متن/لینک را تشخیص داده و پروکسی‌ها را استخراج می‌کند.
+                    </p>
+                    <p v-if="detectedProxiesCount > 0" class="text-green-700 text-sm">
+                        <i class="fas fa-check-circle ml-1"></i>
+                        {{ detectedProxiesCount }} پروکسی شناسایی شد.
+                    </p>
+                </div>
+
             </div>
 
             <div v-if="currentTab === 'view-proxies'">
@@ -116,8 +193,8 @@
                     <li v-for="proxy in savedProxies" :key="proxy.id" class="text-gray-700 mb-2 flex justify-between items-center">
                         <div>
                             <i class="fas fa-server text-green-500 ml-2"></i>
-                            ID: {{ proxy.id }} | پروتکل: {{ proxy.protocol_name }} | نام: {{ proxy.name }} | سرور: {{ proxy.server }}:{{ proxy.port }}
-                        </div>
+                            نام: **{{ proxy.name }}** | پروتکل: **{{ proxy.protocol_name }}** | سرور: **{{ proxy.server }}**:{{ proxy.port }}
+                            </div>
                         <button @click="deleteProxy(proxy.id)" class="bg-red-500 hover:bg-red-700 text-white text-sm py-1 px-2 rounded ml-2">
                             <i class="fas fa-trash-alt"></i> حذف
                         </button>
@@ -137,13 +214,47 @@
                         </p>
                     </label>
                     <div class="max-h-48 overflow-y-auto border rounded p-2 bg-gray-50">
-                        <div v-for="proxy in savedProxies" :key="proxy.id" class="flex items-center mb-1">
+                        <div v-for="proxy in filteredSavedProxies" :key="proxy.id" class="flex items-center mb-1">
                             <input type="checkbox" :id="'proxy-' + proxy.id" :value="proxy.id" v-model="selectedMihomoProxyIds" class="ml-2">
                             <label :for="'proxy-' + proxy.id" class="text-gray-700 text-sm">
-                                ID: {{ proxy.id }} | {{ proxy.name }} ({{ proxy.protocol_name }}) - {{ proxy.server }}:{{ proxy.port }}
+                                نام: **{{ proxy.name }}** ({{ proxy.protocol_name }}) - {{ proxy.server }}:{{ proxy.port }}
                             </label>
                         </div>
-                        <p v-if="!savedProxies.length" class="text-gray-600 text-sm">ابتدا پروکسی اضافه کنید.</p>
+                        <p v-if="!filteredSavedProxies.length" class="text-gray-600 text-sm">
+                            هیچ پروکسی مطابق با فیلترها/انتخاب‌های شما یافت نشد.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label for="max-proxies-output" class="block text-gray-700 text-sm font-bold mb-2">
+                        حداکثر تعداد پروکسی در خروجی:
+                        <span class="text-xs text-gray-500">(0 یا خالی برای نامحدود)</span>
+                    </label>
+                    <input type="number" id="max-proxies-output" v-model.number="maxProxiesOutput"
+                        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        placeholder="مثال: 5">
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">
+                        پروتکل‌های مورد نظر در خروجی:
+                    </label>
+                    <div class="flex flex-wrap items-center mb-2">
+                        <button @click="selectAllProtocols" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-1 px-2 rounded ml-2 mb-1">
+                            انتخاب همه
+                        </button>
+                        <button @click="clearAllProtocols" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-1 px-2 rounded ml-2 mb-1">
+                            پاک کردن همه
+                        </button>
+                    </div>
+                    <div class="max-h-24 overflow-y-auto border rounded p-2 bg-gray-50">
+                        <div v-for="type in allProtocolTypes" :key="type" class="flex items-center mb-1">
+                            <input type="checkbox" :id="'protocol-type-' + type" :value="type" v-model="selectedOutputProtocols" class="ml-2">
+                            <label :for="'protocol-type-' + type" class="text-gray-700 text-sm">
+                                {{ type }}
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -195,7 +306,7 @@
             </div>
         </div>
 
-        <div v-if="message" :class="{'bg-green-100 border-green-400 text-green-700': messageType === 'success', 'bg-red-100 border-red-400 text-red-700': messageType === 'error'}"
+        <div v-if="message" :class="{'bg-green-100 border-green-400 text-green-700': messageType === 'success', 'bg-red-100 border-red-400 text-red-700': messageType === 'error', 'bg-blue-100 border-blue-400 text-blue-700': messageType === 'info'}"
              class="border px-4 py-3 rounded relative mt-4" role="alert">
             <span class="block sm:inline">{{ message }}</span>
         </div>

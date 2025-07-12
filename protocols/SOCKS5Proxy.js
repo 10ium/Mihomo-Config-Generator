@@ -20,7 +20,7 @@ class SOCKS5Proxy extends BaseProtocol {
                 id: "server",
                 label: "آدرس سرور",
                 type: "text",
-                placeholder: "مثال: example.com یا 192.168.1.1",
+                placeholder: "مثال: example.com",
                 required: true
             },
             {
@@ -41,6 +41,44 @@ class SOCKS5Proxy extends BaseProtocol {
                 label: "رمز عبور (اختیاری)",
                 type: "password",
                 required: false
+            },
+            {
+                id: "tls",
+                label: "فعال‌سازی TLS",
+                type: "checkbox",
+                default: false,
+                required: false
+            },
+            {
+                id: "skip-cert-verify",
+                label: "اعتبار‌سنجی گواهی را رد کن",
+                type: "checkbox",
+                default: false,
+                required: false,
+                dependency: { field: "tls", value: true }
+            },
+            {
+                id: "fingerprint",
+                label: "Fingerprint (SHA256)",
+                type: "text",
+                placeholder: "مثال: xxxxxxxxxxxxxxxxxxxxxxxx",
+                required: false,
+                dependency: { field: "tls", value: true }
+            },
+            {
+                id: "udp",
+                label: "فعال‌سازی UDP (UDP Relay)",
+                type: "checkbox",
+                default: true,
+                required: false
+            },
+            {
+                id: "ip-version",
+                label: "نسخه IP",
+                type: "select",
+                options: ["dual", "ipv4", "ipv6"],
+                default: "dual",
+                required: false
             }
         ];
     }
@@ -54,7 +92,12 @@ class SOCKS5Proxy extends BaseProtocol {
                     name: "SOCKS5 Proxy",
                     port: 1080,
                     username: "",
-                    password: ""
+                    password: "",
+                    tls: false,
+                    "skip-cert-verify": false,
+                    fingerprint: "",
+                    udp: true,
+                    "ip-version": "dual"
                 }
             },
             {
@@ -64,7 +107,27 @@ class SOCKS5Proxy extends BaseProtocol {
                     name: "Authenticated SOCKS5",
                     port: 1080,
                     username: "user",
-                    password: "pass"
+                    password: "pass",
+                    tls: false,
+                    "skip-cert-verify": false,
+                    fingerprint: "",
+                    udp: true,
+                    "ip-version": "dual"
+                }
+            },
+            {
+                name: "SOCKS5-TLS",
+                description: "پروکسی SOCKS5 امن با TLS.",
+                values: {
+                    name: "SOCKS5-TLS Proxy",
+                    port: 443,
+                    username: "",
+                    password: "",
+                    tls: true,
+                    "skip-cert-verify": false,
+                    fingerprint: "",
+                    udp: true,
+                    "ip-version": "dual"
                 }
             }
         ];
@@ -77,19 +140,32 @@ class SOCKS5Proxy extends BaseProtocol {
             name: proxyName,
             type: "socks5",
             server: userConfig.server,
-            port: parseInt(userConfig.port), // اطمینان از اینکه پورت از نوع عدد باشد
+            port: parseInt(userConfig.port),
         };
 
         if (userConfig.username && userConfig.password) {
             mihomoConfig.username = userConfig.username;
             mihomoConfig.password = userConfig.password;
         }
-        
-        // Mihomo برای SOCKS5 پارامتر udp هم دارد که می توانید در فیلدها اضافه کنید
-        // if (userConfig.udp) {
-        //     mihomoConfig.udp = userConfig.udp;
-        // }
 
+        if (userConfig.tls) {
+            mihomoConfig.tls = userConfig.tls;
+            if (userConfig["skip-cert-verify"]) {
+                mihomoConfig["skip-cert-verify"] = userConfig["skip-cert-verify"];
+            }
+            if (userConfig.fingerprint) {
+                mihomoConfig.fingerprint = userConfig.fingerprint;
+            }
+        }
+        
+        if (userConfig.udp !== undefined) { // چک کردن برای undefined، چون false هم مقدار معتبری است
+            mihomoConfig.udp = userConfig.udp;
+        }
+
+        if (userConfig["ip-version"] && userConfig["ip-version"] !== "dual") {
+            mihomoConfig["ip-version"] = userConfig["ip-version"];
+        }
+        
         return mihomoConfig;
     }
 }

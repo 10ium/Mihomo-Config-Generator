@@ -5,40 +5,67 @@ import ConfigManager from './ConfigManager.js';
 import MihomoConfigGenerator from './MihomoConfigGenerator.js';
 
 new Vue({
-    el: '#app', // این Vue.js رو به div#app در index.html متصل می‌کنه
+    el: '#app',
     data: {
-        currentTab: 'add-proxy', // تب پیش‌فرض هنگام بارگذاری صفحه
-        protocols: [], // لیست نام پروتکل‌های موجود (مثل HTTP, SOCKS5)
+        currentTab: 'add-proxy',
+        protocols: [],
         
-        // داده‌های مربوط به تب "افزودن پروکسی"
-        selectedProtocolName: '', // نام پروتکل انتخاب شده توسط کاربر برای افزودن پروکسی
-        currentProtocolFields: [], // فیلدهای کانفیگ مربوط به پروتکل انتخاب شده
-        proxyTemplates: [], // تمپلت‌های پروکسی پیش‌فرض برای پروتکل انتخاب شده
-        entryMethod: 'manual', // 'manual' یا 'template' - روش ورود جزئیات
-        newProxy: {}, // آبجکت برای نگهداری داده‌های پروکسی جدیدی که کاربر وارد می‌کنه
-        selectedTemplate: null, // تمپلت پروکسی انتخاب شده از لیست
+        // --- تب افزودن پروکسی ---
+        addProxyMethodTab: 'manual-entry', // 'manual-entry', 'file-upload', 'link-input'
+        selectedProtocolName: '',
+        currentProtocolFields: [],
+        proxyTemplates: [],
+        entryMethod: 'manual', // برای بخش دستی: 'manual' یا 'template'
+        newProxy: {}, // مدل برای فرم افزودن پروکسی جدید (دستی)
         
-        // داده‌های مربوط به تب "پروکسی‌های من"
-        savedProxies: [], // لیست پروکسی‌های ذخیره شده کاربر
+        fileContent: '', // محتوای فایل آپلود شده
+        linkInput: '', // متن یا لینک وارد شده
+        detectedProxiesCount: 0, // تعداد پروکسی‌های شناسایی شده از فایل/لینک
         
-        // داده‌های مربوط به تب "ساخت کانفیگ MiHoMo"
-        selectedMihomoProxyIds: [], // ID پروکسی‌های انتخاب شده برای MiHoMo
-        mihomoTemplates: [], // لیست نام تمپلت‌های قوانین MiHoMo (مثلاً full_rules, no_rules)
+        // --- تب پروکسی‌های من ---
+        savedProxies: [],
+        
+        // --- تب ساخت کانفیگ MiHoMo ---
+        selectedMihomoProxyIds: [],
+        mihomoTemplates: [],
         selectedMihomoTemplateName: '',
         mihomoMainPort: 7890,
         mihomoSocksPort: 7891,
+        
+        maxProxiesOutput: null, // حداکثر تعداد پروکسی در خروجی (null برای نامحدود)
+        selectedOutputProtocols: [], // پروتکل‌های انتخاب شده برای خروجی نهایی
+        allProtocolTypes: [], // لیست تمام نام پروتکل‌ها برای نمایش در فیلتر
+        
         generatedConfigContent: '',
         
-        // داده‌های مربوط به پیام‌ها و بازخورد به کاربر
+        // --- پیام‌ها ---
         message: '',
         messageType: '', // 'success' or 'error'
         copySuccess: false,
     },
     mounted() {
-        // این متد وقتی کامپوننت Vue بارگذاری شد فراخوانی میشه
-        this.fetchProtocols(); // بارگذاری پروتکل‌ها از ProtocolManager
-        this.fetchSavedProxies(); // بارگذاری پروکسی‌های ذخیره شده از ConfigManager
-        this.fetchMihomoTemplates(); // بارگذاری تمپلت‌های Mihomo از MihomoConfigGenerator
+        this.fetchProtocols();
+        this.fetchSavedProxies();
+        this.fetchMihomoTemplates();
+        this.allProtocolTypes = ProtocolManager.getAllProtocolNames(); // دریافت همه پروتکل‌ها برای فیلتر
+        this.selectedOutputProtocols = [...this.allProtocolTypes]; // به طور پیش‌فرض همه را انتخاب کن
+    },
+    computed: {
+        filteredProtocolFields() {
+            return this.currentProtocolFields.filter(field => {
+                if (field.dependency) {
+                    const dependentFieldValue = this.newProxy[field.dependency.field];
+                    return dependentFieldValue === field.dependency.value;
+                }
+                return true;
+            });
+        },
+        // پروکسی‌های فیلتر شده بر اساس نوع پروتکل برای انتخاب در تولید کانفیگ
+        filteredSavedProxies() {
+            return this.savedProxies.filter(proxy => 
+                this.selectedOutputProtocols.includes(proxy.protocol_name)
+            );
+        }
     },
     methods: {
         // --- متدهای عمومی ---
@@ -48,7 +75,7 @@ new Vue({
             setTimeout(() => {
                 this.message = '';
                 this.messageType = '';
-            }, 5000); // پیام بعد از 5 ثانیه ناپدید شود
+            }, 5000);
         },
 
         // --- متدهای مربوط به پروتکل‌ها ---
@@ -58,25 +85,24 @@ new Vue({
         async onProtocolChange() {
             this.currentProtocolFields = [];
             this.proxyTemplates = [];
-            this.newProxy = {}; // ریست کردن فرم
-            this.entryMethod = 'manual'; // پیش‌فرض به دستی
-            this.selectedTemplate = null; // ریست کردن تمپلت انتخابی
+            this.newProxy = {};
+            this.entryMethod = 'manual';
+            this.selectedTemplate = null;
 
             if (this.selectedProtocolName) {
                 const protocolInstance = ProtocolManager.getProtocolByName(this.selectedProtocolName);
                 if (protocolInstance) {
                     this.currentProtocolFields = protocolInstance.getConfigFields();
-                    this.proxyTemplates = protocolInstance.getDefaultProxyTemplates();
                     
-                    // مقداردهی اولیه newProxy با مقادیر پیش‌فرض فیلدها
                     this.currentProtocolFields.forEach(field => {
                         if (field.default !== undefined) {
                             this.$set(this.newProxy, field.id, field.default);
                         } else {
-                            // اگر default نداشت و از نوع عدد بود، مقدار null یا خالی بده
                             this.$set(this.newProxy, field.id, field.type === 'number' ? null : '');
                         }
                     });
+
+                    this.proxyTemplates = protocolInstance.getDefaultProxyTemplates();
                 } else {
                     this.showMessage('پروتکل انتخاب شده یافت نشد.', 'error');
                 }
@@ -88,9 +114,9 @@ new Vue({
                 this.currentProtocolFields.forEach(field => {
                     const templateValue = this.selectedTemplate.values[field.id];
                     if (templateValue !== undefined) {
-                        this.$set(updatedProxy, field.id, templateValue);
+                        this.$set(updatedProxy, field.id, field.type === 'checkbox' ? Boolean(templateValue) : templateValue);
                     } else if (field.default !== undefined) {
-                        this.$set(updatedProxy, field.id, field.default);
+                        this.$set(updatedProxy, field.id, field.type === 'checkbox' ? Boolean(field.default) : field.default);
                     } else {
                         this.$set(updatedProxy, field.id, field.type === 'number' ? null : '');
                     }
@@ -99,9 +125,8 @@ new Vue({
             }
         },
 
-        // --- متدهای مربوط به مدیریت پروکسی‌ها ---
-        addProxy() {
-            // اعتبارسنجی ساده سمت فرانت‌اند
+        // --- متدهای مربوط به افزودن پروکسی ---
+        async addProxy() {
             for (const field of this.currentProtocolFields) {
                 if (field.required && (this.newProxy[field.id] === null || this.newProxy[field.id] === undefined || this.newProxy[field.id] === '')) {
                     this.showMessage(`فیلد '${field.label}' اجباری است.`, 'error');
@@ -109,24 +134,220 @@ new Vue({
                 }
             }
 
-            const proxyToSend = { ...this.newProxy, protocol_name: this.selectedProtocolName };
+            const proxyToAdd = { ...this.newProxy, protocol_name: this.selectedProtocolName };
+            this.addProxyToSavedList(proxyToAdd);
+        },
+
+        handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                this.fileContent = e.target.result;
+                this.parseAndAddProxies(this.fileContent, "File");
+            };
+            reader.onerror = (e) => {
+                this.showMessage('خطا در خواندن فایل.', 'error');
+                console.error('File reading error:', e);
+            };
+            reader.readAsText(file);
+        },
+
+        addProxiesFromLinkOrText() {
+            this.parseAndAddProxies(this.linkInput, "Link/Text");
+        },
+
+        parseAndAddProxies(content, sourceName = "Unknown Source") {
+            let decodedContent = content;
+            this.detectedProxiesCount = 0; // ریست شمارنده
+
+            // 1. تشخیص و دیکد کردن Base64
+            try {
+                if (Base64.isValid(content)) {
+                    decodedContent = Base64.decode(content);
+                    this.showMessage(`محتوا به عنوان Base64 شناسایی و رمزگشایی شد.`, 'success');
+                }
+            } catch (e) {
+                console.warn("محتوا Base64 معتبر نیست یا خطا در دیکدینگ:", e);
+            }
             
-            if (ConfigManager.addConfig(proxyToSend)) {
+            let proxiesToAdd = [];
+            
+            // 2. تلاش برای parsing YAML/JSON
+            try {
+                const parsedYaml = jsyaml.load(decodedContent);
+                if (parsedYaml && Array.isArray(parsedYaml.proxies)) {
+                    proxiesToAdd = parsedYaml.proxies;
+                    this.showMessage(`پروکسی‌ها از فایل/متن YAML معتبر استخراج شدند.`, 'success');
+                } else if (parsedYaml && parsedYaml.type && parsedYaml.server && parsedYaml.port) {
+                    proxiesToAdd.push(parsedYaml);
+                    this.showMessage(`یک پروکسی از فایل/متن YAML معتبر استخراج شد.`, 'success');
+                } else {
+                    console.log("محتوای YAML/JSON معتبر نیست یا شامل لیست پروکسی‌ها نیست.");
+                }
+            } catch (e) {
+                console.log("محتوا YAML/JSON معتبر نیست. تلاش برای استخراج لینک‌ها...", e);
+            }
+
+            // 3. تلاش برای استخراج از لینک‌های اشتراک (Vmess, Shadowsocks, ...)
+            if (proxiesToAdd.length === 0) {
+                const lines = decodedContent.split('\n').map(line => line.trim()).filter(line => line.length > 0);
+                for (const line of lines) {
+                    let proxy = null;
+                    // اینجا باید تمام پروتکل‌های پشتیبانی شده را بررسی کرد
+                    // و logic parsing خاص هر پروتکل را فراخوانی کرد
+                    if (line.startsWith("socks5://")) {
+                        proxy = this.parseSocks5Link(line);
+                    } else if (line.startsWith("http://") || line.startsWith("https://")) {
+                        proxy = this.parseHttpLink(line);
+                    }
+                    // TODO: اینجا می توانید پروتکل های Vmess, SS, Trojan, ... را هم parse کنید
+                    
+                    if (proxy) {
+                        proxiesToAdd.push(proxy);
+                    } else {
+                        console.warn(`خط/لینک ناشناخته/نامعتبر: ${line}`);
+                    }
+                }
+            }
+
+            this.detectedProxiesCount = proxiesToAdd.length; // به‌روزرسانی شمارنده
+
+            if (this.detectedProxiesCount === 0) {
+                this.showMessage('هیچ پروکسی معتبری از محتوای وارد شده یافت نشد. فرمت را بررسی کنید.', 'error');
+                return;
+            }
+
+            let addedCount = 0;
+            for (const proxy of proxiesToAdd) {
+                if (!proxy.type) {
+                    console.warn(`پروکسی بدون نوع (type) نادیده گرفته شد:`, proxy);
+                    continue;
+                }
+                
+                const protocolInstance = ProtocolManager.getProtocolByName(proxy.type.toUpperCase());
+                if (!protocolInstance) {
+                    console.warn(`پروتکل '${proxy.type}' پشتیبانی نمی‌شود و پروکسی نادیده گرفته شد:`, proxy);
+                    continue;
+                }
+
+                const configData = { protocol_name: protocolInstance.getName() };
+                const fields = protocolInstance.getConfigFields();
+                
+                // انتقال مقادیر از آبجکت parsedProxy به configData بر اساس id فیلدها
+                fields.forEach(field => {
+                    if (proxy[field.id] !== undefined) {
+                        configData[field.id] = proxy[field.id];
+                    } else if (field.default !== undefined) {
+                        configData[field.id] = field.default;
+                    }
+                });
+
+                // موارد خاص که نام فیلد در Mihomo با id در configFields متفاوت است
+                // (اگر Mihomo 'type' را به عنوان 'protocol_name' ذخیره می کنیم،
+                // نیازی به Map دستی اینجا نیست، فقط باید مطمئن شویم generateMihomoProxyConfig
+                // این مقادیر را صحیح هندل می کند)
+                
+                // Special handling for HTTP headers if present
+                if (proxy.headers && typeof proxy.headers === 'object') {
+                    configData.headers = JSON.stringify(proxy.headers);
+                }
+
+                this.addProxyToSavedList(configData);
+                addedCount++;
+            }
+
+            if (addedCount > 0) {
+                this.showMessage(`${addedCount} پروکسی با موفقیت اضافه شد.`, 'success');
+                this.fileContent = '';
+                this.linkInput = '';
+            } else {
+                this.showMessage('هیچ پروکسی معتبری برای افزودن یافت نشد.', 'error');
+            }
+        },
+
+        parseSocks5Link(link) {
+            try {
+                const url = new URL(link);
+                const proxy = {
+                    type: "socks5",
+                    server: url.hostname,
+                    port: parseInt(url.port)
+                };
+                if (url.username) proxy.username = decodeURIComponent(url.username);
+                if (url.password) proxy.password = decodeURIComponent(url.password);
+
+                const params = new URLSearchParams(url.search);
+                if (params.get('tls')) proxy.tls = params.get('tls').toLowerCase() === 'true';
+                if (params.get('skip-cert-verify')) proxy['skip-cert-verify'] = params.get('skip-cert-verify').toLowerCase() === 'true';
+                if (params.get('udp')) proxy.udp = params.get('udp').toLowerCase() === 'true';
+                if (params.get('ip-version')) proxy['ip-version'] = params.get('ip-version');
+                if (params.get('fingerprint')) proxy.fingerprint = params.get('fingerprint');
+
+                proxy.name = proxy.name || `SOCKS5-${proxy.server}:${proxy.port}`;
+                return proxy;
+            } catch (e) {
+                console.error("خطا در تجزیه لینک SOCKS5:", link, e);
+                return null;
+            }
+        },
+
+        parseHttpLink(link) {
+            try {
+                const url = new URL(link);
+                const proxy = {
+                    type: "http",
+                    server: url.hostname,
+                    port: parseInt(url.port)
+                };
+                if (url.username) proxy.username = decodeURIComponent(url.username);
+                if (url.password) proxy.password = decodeURIComponent(url.password);
+
+                proxy.tls = url.protocol === 'https:';
+
+                const params = new URLSearchParams(url.search);
+                if (params.get('skip-cert-verify')) proxy['skip-cert-verify'] = params.get('skip-cert-verify').toLowerCase() === 'true';
+                if (params.get('sni')) proxy.sni = params.get('sni');
+                if (params.get('fingerprint')) proxy.fingerprint = params.get('fingerprint');
+                if (params.get('ip-version')) proxy['ip-version'] = params.get('ip-version');
+                if (params.get('headers')) {
+                    try {
+                        proxy.headers = JSON.parse(decodeURIComponent(params.get('headers')));
+                    } catch (e) {
+                        console.warn("هدرهای JSON در لینک نامعتبر است:", params.get('headers'));
+                    }
+                }
+
+                proxy.name = proxy.name || `HTTP-${proxy.server}:${proxy.port}`;
+                return proxy;
+            } catch (e) {
+                console.error("خطا در تجزیه لینک HTTP:", link, e);
+                return null;
+            }
+        },
+
+        addProxyToSavedList(proxyData) {
+            let finalName = proxyData.name;
+            let counter = 1;
+            while (this.savedProxies.some(p => p.name === finalName)) {
+                finalName = `${proxyData.name} ${counter}`;
+                counter++;
+            }
+            proxyData.name = finalName;
+
+            if (ConfigManager.addConfig(proxyData)) {
                 this.showMessage('پروکسی با موفقیت اضافه شد!', 'success');
-                this.fetchSavedProxies(); // رفرش لیست
-                this.resetAddProxyForm(); // ریست کردن فرم
+                this.fetchSavedProxies();
+                if (this.addProxyMethodTab === 'manual-entry') {
+                    this.resetAddProxyForm();
+                }
             } else {
                 this.showMessage('خطا در افزودن پروکسی.', 'error');
             }
         },
-        resetAddProxyForm() {
-            this.selectedProtocolName = '';
-            this.currentProtocolFields = [];
-            this.proxyTemplates = [];
-            this.newProxy = {};
-            this.entryMethod = 'manual';
-            this.selectedTemplate = null;
-        },
+
+        // --- متدهای مربوط به مدیریت پروکسی‌ها ---
         fetchSavedProxies() {
             this.savedProxies = ConfigManager.getAllConfigs();
         },
@@ -136,7 +357,7 @@ new Vue({
             }
             if (ConfigManager.deleteConfig(id)) {
                 this.showMessage('پروکسی با موفقیت حذف شد.', 'success');
-                this.fetchSavedProxies(); // رفرش لیست
+                this.fetchSavedProxies();
             } else {
                 this.showMessage('خطا در حذف پروکسی.', 'error');
             }
@@ -145,7 +366,6 @@ new Vue({
         // --- متدهای مربوط به تولید کانفیگ MiHoMo ---
         fetchMihomoTemplates() {
             this.mihomoTemplates = MihomoConfigGenerator.getAvailableTemplates();
-            // پیش‌فرض انتخاب 'full_rules' اگر موجود بود
             if (this.mihomoTemplates.includes('full_rules')) {
                 this.selectedMihomoTemplateName = 'full_rules';
             } else if (this.mihomoTemplates.length > 0) {
@@ -162,31 +382,41 @@ new Vue({
                 return;
             }
 
-            // تبدیل IDهای پروکسی به فرمت Mihomo با استفاده از پروتکل مربوطه
-            const mihomoFormattedProxies = [];
+            let proxiesToInclude = [];
+            
+            // فیلتر کردن پروکسی‌ها بر اساس انتخاب کاربر (protocol_name)
             for (const p_id of this.selectedMihomoProxyIds) {
                 const proxyData = ConfigManager.getConfigById(p_id);
-                if (proxyData) {
+                if (proxyData && this.selectedOutputProtocols.includes(proxyData.protocol_name)) {
                     const protocolInstance = ProtocolManager.getProtocolByName(proxyData.protocol_name);
                     if (protocolInstance) {
-                        mihomoFormattedProxies.push(protocolInstance.generateMihomoProxyConfig(proxyData));
+                        proxiesToInclude.push(protocolInstance.generateMihomoProxyConfig(proxyData));
                     } else {
                         console.warn(`پروتکل '${proxyData.protocol_name}' برای پروکسی ID ${p_id} یافت نشد. این پروکسی نادیده گرفته شد.`);
                     }
+                } else if (proxyData && !this.selectedOutputProtocols.includes(proxyData.protocol_name)) {
+                    console.warn(`پروکسی ID ${p_id} (پروتکل ${proxyData.protocol_name}) به دلیل فیلتر پروتکل‌ها نادیده گرفته شد.`);
                 } else {
                     console.warn(`پروکسی با ID ${p_id} یافت نشد و نادیده گرفته شد.`);
                 }
             }
             
-            if (!mihomoFormattedProxies.length && this.selectedMihomoProxyIds.length > 0) {
-                 this.showMessage("هیچ پروکسی معتبری برای تولید کانفیگ MiHoMo یافت نشد. لطفاً پروتکل‌های صحیح را اضافه کنید.", 'error');
+            if (!proxiesToInclude.length) {
+                 this.showMessage("هیچ پروکسی معتبری برای تولید کانفیگ MiHoMo یافت نشد. فیلترها را بررسی کنید.", 'error');
                  this.generatedConfigContent = '';
                  return;
             }
 
+            // اعمال محدودیت حداکثر تعداد پروکسی
+            if (this.maxProxiesOutput !== null && this.maxProxiesOutput > 0 && proxiesToInclude.length > this.maxProxiesOutput) {
+                proxiesToInclude = proxiesToInclude.slice(0, this.maxProxiesOutput);
+                this.showMessage(`تعداد پروکسی‌ها به ${this.maxProxiesOutput} محدود شد.`, 'info'); // اضافه کردن پیام info
+            }
+
+
             const configContent = MihomoConfigGenerator.generateConfig(
                 this.selectedMihomoTemplateName,
-                mihomoFormattedProxies,
+                proxiesToInclude, // استفاده از لیست فیلتر شده و محدود شده
                 this.mihomoMainPort,
                 this.mihomoSocksPort
             );
@@ -217,27 +447,49 @@ new Vue({
                 navigator.clipboard.writeText(this.generatedConfigContent)
                     .then(() => {
                         this.copySuccess = true;
-                        setTimeout(() => this.copySuccess = false, 2000); // پیام موفقیت 2 ثانیه نمایش داده شود
+                        setTimeout(() => this.copySuccess = false, 2000);
                     })
                     .catch(err => {
                         console.error('Could not copy text: ', err);
                         this.showMessage('خطا در کپی کردن کانفیگ.', 'error');
                     });
             }
+        },
+        // متد برای انتخاب همه پروتکل‌ها
+        selectAllProtocols() {
+            this.selectedOutputProtocols = [...this.allProtocolTypes];
+        },
+        // متد برای عدم انتخاب هیچ پروتکلی
+        clearAllProtocols() {
+            this.selectedOutputProtocols = [];
         }
     },
     watch: {
-        // مشاهده تغییرات currentTab برای بارگذاری مجدد داده‌ها
         currentTab(newTab) {
             if (newTab === 'protocols') {
                 this.fetchProtocols();
             } else if (newTab === 'view-proxies') {
                 this.fetchSavedProxies();
             } else if (newTab === 'generate-config') {
-                this.fetchSavedProxies(); // برای انتخاب پروکسی‌ها
-                this.fetchMihomoTemplates(); // برای انتخاب تمپلت‌ها
-                this.generatedConfigContent = ''; // ریست محتوای تولید شده
+                this.fetchSavedProxies();
+                this.fetchMihomoTemplates();
+                this.generatedConfigContent = '';
+                // ریست فیلترها و محدودیت‌ها هنگام ورود به این تب
+                this.maxProxiesOutput = null; 
+                this.selectedOutputProtocols = [...this.allProtocolTypes]; 
+            } else if (newTab === 'add-proxy') {
+                this.resetAddProxyForm();
+                this.detectedProxiesCount = 0; // ریست شمارنده
+                this.fileContent = '';
+                this.linkInput = '';
             }
+        },
+        // هنگام تغییر محتوای فایل/لینک، شمارنده را ریست کن
+        fileContent() {
+            this.detectedProxiesCount = 0;
+        },
+        linkInput() {
+            this.detectedProxiesCount = 0;
         }
     }
 });
