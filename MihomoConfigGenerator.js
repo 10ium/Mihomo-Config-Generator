@@ -2,16 +2,9 @@
 
 // چون نمی‌تونیم فایل‌های YAML رو مستقیماً از فایل‌سیستم مرورگر بخونیم،
 // محتوای تمپلت‌ها رو اینجا به صورت رشته (String) نگه می‌داریم.
-// در یک پروژه بزرگتر، اینها می‌توانستند از طریق یک درخواست fetch از یک سرور استاتیک لود شوند،
-// اما برای سادگی و آفلاین بودن، آنها را اینجا قرار می‌دهیم.
 
-// تمپلت قوانین کامل (full_rules.yaml)
+// تمپلت قوانین کامل (full_rules.yaml) - با تغییرات برای پشتیبانی از {{user_proxy_names_list}} در گروه‌ها
 const FULL_RULES_TEMPLATE_CONTENT = `
-# این یک تمپلت پیش‌فرض برای کانفیگ MiHoMo است.
-# بخش‌های proxies, proxy-groups, rule-providers و rules
-# توسط برنامه تولید می‌شوند.
-# نیازی به تغییر دستی این فایل نیست.
-
 global-client-fingerprint: chrome
 port: {{mihomo_port}}
 socks-port: {{mihomo_socks_port}}
@@ -25,7 +18,7 @@ find-process-mode: always
 ipv6: true
 log-level: debug
 geo-auto-update: true
-geo-update-interval: 168 # 168 hours = 7 days
+geo-update-interval: 168
 secret: ''
 bind-address: '*'
 unified-delay: false
@@ -35,7 +28,6 @@ keep-alive-interval: 30
 profile:
   store-selected: true
   store-fake-ip: true
-
 dns:
   enable: true
   ipv6: true
@@ -59,7 +51,6 @@ dns:
     - 'time.*.com'
     - 'ntp.*.com'
     - '*.ir'
-
   default-nameserver:
     - 8.8.8.8
     - 8.8.4.4
@@ -116,12 +107,6 @@ tun:
     - "any:53"
     - "tcp://any:53"
 
-ntp:
-  enable: true
-  server: "time.apple.com"
-  port: 123
-  interval: 30
-
 rule-providers:
   category_public_tracker:
     type: http
@@ -138,9 +123,9 @@ rule-providers:
   PersianBlocker:
     type: http
     behavior: domain
-    url: https://github.com/MasterKia/iran-hosted-domains/releases/latest/download/clash_rules_ads.yaml
-    interval: 86400
+    url: "https://github.com/MasterKia/iran-hosted-domains/releases/latest/download/clash_rules_ads.yaml"
     path: ./ruleset/PersianBlocker.yaml
+    interval: 86400
   youtube:
     type: http
     behavior: domain
@@ -209,76 +194,88 @@ rule-providers:
     path: ./ruleset/category-games.yaml
   ir:
     type: http
+    format: yaml
     behavior: domain
-    url: https://github.com/chocolate4u/Iran-clash-rules/releases/latest/download/ir.yaml
-    interval: 86400
+    url: "https://github.com/chocolate4u/Iran-clash-rules/releases/latest/download/ir.yaml"
     path: ./ruleset/ir.yaml
+    interval: 86400
   apps:
     type: http
+    format: yaml
     behavior: classical
-    url: https://github.com/chocolate4u/Iran-clash-rules/releases/latest/download/apps.yaml
-    interval: 86400
+    url: "https://github.com/chocolate4u/Iran-clash-rules/releases/latest/download/apps.yaml"
     path: ./ruleset/apps.yaml
+    interval: 86400
   ircidr:
     type: http
+    format: yaml
     behavior: ipcidr
-    url: https://github.com/chocolate4u/Iran-clash-rules/releases/latest/download/ircidr.yaml
-    interval: 86400
+    url: "https://github.com/chocolate4u/Iran-clash-rules/releases/latest/download/ircidr.yaml"
     path: ./ruleset/ircidr.yaml
+    interval: 86400
   irasn:
     type: http
+    format: yaml
     behavior: classical
-    url: https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/irasn.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/irasn.yaml"
     path: ./ruleset/irasn.yaml
+    interval: 86400
   arvancloud:
     type: http
+    format: yaml
     behavior: ipcidr
-    url: https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/arvancloud.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/arvancloud.yaml"
     path: ./ruleset/arvancloud.yaml
+    interval: 86400
   derakcloud:
     type: http
+    format: yaml
     behavior: ipcidr
-    url: https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/derakcloud.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/derakcloud.yaml"
     path: ./ruleset/derakcloud.yaml
+    interval: 86400
   iranserver:
     type: http
+    format: yaml
     behavior: ipcidr
-    url: https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/iranserver.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/iranserver.yaml"
     path: ./ruleset/iranserver.yaml
+    interval: 86400
   parspack:
     type: http
+    format: yaml
     behavior: ipcidr
-    url: https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/parspack.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/parspack.yaml"
     path: ./ruleset/parspack.yaml
+    interval: 86400
   malware:
     type: http
+    format: yaml
     behavior: domain
-    url: https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/malware.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/malware.yaml"
     path: ./ruleset/malware.yaml
+    interval: 86400
   phishing:
     type: http
+    format: yaml
     behavior: domain
-    url: https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/phishing.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/phishing.yaml"
     path: ./ruleset/phishing.yaml
+    interval: 86400
   cryptominers:
     type: http
+    format: yaml
     behavior: domain
-    url: https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/cryptominers.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/cryptominers.yaml"
     path: ./ruleset/cryptominers.yaml
+    interval: 86400
   ads:
     type: http
+    format: yaml
     behavior: domain
-    url: https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/releases/latest/download/category-ads-all.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/releases/latest/download/category-ads-all.yaml"
     path: ./ruleset/ads.yaml
+    interval: 86400
   DownloadManagers:
     type: http
     behavior: classical
@@ -354,7 +351,7 @@ rule-providers:
   warninglist:
     type: http
     behavior: classical
-    url: https://raw.githubusercontent.com/10ium/mihomo_rule/refs/heads/main/list/warning-list.yaml
+    url: https://raw.githubusercontent.com/10ium/mihomo_rule/refs/heads/main/warning-list.yaml
     interval: 86400
     path: ./ruleset/warninglist.yaml
   google:
@@ -377,16 +374,17 @@ rule-providers:
     path: ./ruleset/xiaomi-ads.yaml
   xiaomi_block_list:
     type: http
+    format: yaml
     behavior: domain
-    url: https://raw.githubusercontent.com/10ium/clash_rules/refs/heads/main/xiaomi_block_list.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/10ium/clash_rules/refs/heads/main/xiaomi_block_list.yaml"
     path: ./ruleset/xiaomi_block_list.yaml
+    interval: 86400
   xiaomi_white_list:
     type: http
     behavior: classical
-    url: https://raw.githubusercontent.com/10ium/clash_rules/refs/heads/main/xiaomi_white_list.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/10ium/clash_rules/refs/heads/main/xiaomi_white_list.yaml"
     path: ./ruleset/xiaomi_white_list.yaml
+    interval: 86400
   cloudflare:
     type: http
     behavior: domain
@@ -398,7 +396,7 @@ rule-providers:
     behavior: domain
     url: https://raw.githubusercontent.com/10ium/V2rayDomains2Clash/refs/heads/generated/github.yaml
     interval: 86400
-    path: ./ruleset/github.yaml
+    path: ./ruleset/xgithub.yaml
   whatsapp:
     type: http
     behavior: domain
@@ -408,15 +406,15 @@ rule-providers:
   LiteAds:
     type: http
     behavior: classical
-    url: https://raw.githubusercontent.com/10ium/clash_rules/refs/heads/main/LiteAds.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/10ium/clash_rules/refs/heads/main/LiteAds.yaml"
     path: ./ruleset/LiteAds.yaml
+    interval: 86400
   discord:
     type: http
     behavior: classical
-    url: https://raw.githubusercontent.com/10ium/clash_rules/refs/heads/main/discord.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/10ium/clash_rules/refs/heads/main/discord.yaml"
     path: ./ruleset/discord.yaml
+    interval: 86400
   instagram:
     type: http
     behavior: domain
@@ -432,44 +430,34 @@ rule-providers:
   stremio:
     type: http
     behavior: classical
-    url: https://raw.githubusercontent.com/10ium/clash_rules/refs/heads/main/stremio.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/10ium/clash_rules/refs/heads/main/stremio.yaml"
     path: ./ruleset/stremio.yaml
+    interval: 86400
   windows:
     type: http
     behavior: classical
-    url: https://raw.githubusercontent.com/10ium/clash_rules/refs/heads/main/windows.yaml
-    interval: 86400
+    url: "https://raw.githubusercontent.com/10ium/clash_rules/refs/heads/main/windows.yaml"
     path: ./ruleset/windows.yaml
+    interval: 86400
 
 proxies:
   # این بخش با لیست پروکسی‌های کاربر پر می‌شود: {{user_proxies}}
 
 proxy-groups:
-  # نام گروه اصلی پروکسی‌ها که شامل تمام پروکسی‌های کاربر خواهد بود
-  - name: "All User Proxies"
-    type: select
-    proxies:
-      - {{user_proxy_names}} # نام پروکسی‌های وارد شده توسط کاربر
-
-  # بقیه گروه های پروکسی از تمپلت
   - name: "نوع انتخاب پروکسی 🔀"
-    type: select
     icon: https://www.svgrepo.com/show/412721/choose.svg
+    type: select
     proxies:
       - "خودکار (بهترین پینگ) 🤖"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "دستی 🤏🏻"
       - "قطع اینترنت ⛔"
       - "بدون فیلترشکن 🛡️"
-
   - name: "دستی 🤏🏻"
     type: select
     icon: https://www.svgrepo.com/show/372331/cursor-hand-click.svg
     proxies:
-      - {{user_proxy_names}} # اینجا هم نام پروکسی‌های کاربر
-      - DIRECT
-
+      - {{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود
   - name: "خودکار (بهترین پینگ) 🤖"
     type: url-test
     icon: https://www.svgrepo.com/show/7876/speedometer.svg
@@ -480,8 +468,7 @@ proxy-groups:
     max-failed-times: 6
     lazy: true
     proxies:
-      - {{user_proxy_names}} # اینجا هم نام پروکسی‌های کاربر
-
+      - {{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود
   - name: "پشتیبان (در صورت قطعی) 🧯"
     type: fallback
     icon: https://www.svgrepo.com/show/415208/backup-cloud-document.svg
@@ -491,11 +478,10 @@ proxy-groups:
     max-failed-times: 3
     lazy: true
     proxies:
-      - {{user_proxy_names}} # اینجا هم نام پروکسی‌های کاربر
-
-  - name: "دانلود منیجر 📥"
+      - {{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود
+  - name: دانلود منیجر 📥
     type: select
-    icon: https://www.svgrepo.com/show/475147/download-square.svg
+    icon: https://www.sadeemrdp.com/fonts/apps/IDM-Logo.svg
     proxies:
       - "بدون فیلترشکن 🛡️"
       - "نوع انتخاب پروکسی 🔀"
@@ -503,8 +489,7 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "اجازه ندادن 🚫"
-
-  - name: "تلگرام 💬"
+  - name: تلگرام 💬
     type: select
     icon: https://www.svgrepo.com/show/354443/telegram.svg
     proxies:
@@ -514,8 +499,7 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "اجازه ندادن 🚫"
-
-  - name: "یوتیوب ▶️"
+  - name: یوتیوب ▶️
     type: select
     icon: https://www.svgrepo.com/show/475700/youtube-color.svg
     proxies:
@@ -525,8 +509,7 @@ proxy-groups:
       - "پشتیبان (در صورت قطعی) 🧯"
       - "اجازه ندادن 🚫"
       - "بدون فیلترشکن 🛡️"
-
-  - name: "گوگل 🌍"
+  - name: گوگل 🌍
     type: select
     icon: https://www.svgrepo.com/show/475656/google-color.svg
     proxies:
@@ -536,8 +519,7 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "اجازه ندادن 🚫"
-
-  - name: "واتس آپ 🟢"
+  - name: واتس آپ 🟢
     type: select
     icon: https://upload.wikimedia.org/wikipedia/commons/4/4c/WhatsApp_Logo_green.svg
     proxies:
@@ -547,8 +529,7 @@ proxy-groups:
       - "پشتیبان (در صورت قطعی) 🧯"
       - "اجازه ندادن 🚫"
       - "بدون فیلترشکن 🛡️"
-
-  - name: "هوش مصنوعی 🤖"
+  - name: هوش مصنوعی 🤖
     type: select
     icon: https://www.svgrepo.com/show/306500/openai.svg
     proxies:
@@ -558,8 +539,7 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "اجازه ندادن 🚫"
-
-  - name: "اینستاگرام 📸"
+  - name: اینستاگرام 📸
     type: select
     icon: https://www.svgrepo.com/show/452229/instagram-1.svg
     proxies:
@@ -569,8 +549,7 @@ proxy-groups:
       - "پشتیبان (در صورت قطعی) 🧯"
       - "اجازه ندادن 🚫"
       - "بدون فیلترشکن 🛡️"
-
-  - name: "تبلیغات 🆎"
+  - name: تبلیغات 🆎
     type: select
     icon: https://www.svgrepo.com/show/336358/ad.svg
     proxies:
@@ -580,8 +559,7 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "بدون فیلترشکن 🛡️"
-
-  - name: "تبلیغات اپ ها 🍃"
+  - name: تبلیغات اپ ها 🍃
     type: select
     icon: https://www.svgrepo.com/show/12172/smartphone-ad.svg
     proxies:
@@ -591,8 +569,7 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "بدون فیلترشکن 🛡️"
-
-  - name: "رهگیری جهانی 🛑"
+  - name: رهگیری جهانی 🛑
     type: select
     icon: https://www.svgrepo.com/show/298725/tracking-track.svg
     proxies:
@@ -602,8 +579,7 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "بدون فیلترشکن 🛡️"
-
-  - name: "سایتای مخرب ⚠️"
+  - name: سایتای مخرب ⚠️
     type: select
     icon: https://www.svgrepo.com/show/381135/cyber-crime-cyber-phishing-fraud-hack-money.svg
     proxies:
@@ -613,8 +589,7 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "بدون فیلترشکن 🛡️"
-
-  - name: "استیم 🖥️"
+  - name: استیم 🖥️
     type: select
     icon: https://www.svgrepo.com/show/452107/steam.svg
     proxies:
@@ -624,8 +599,7 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "اجازه ندادن 🚫"
-
-  - name: "گیم 🎮"
+  - name: گیم 🎮
     type: select
     icon: https://www.svgrepo.com/show/167729/game-controller.svg
     proxies:
@@ -635,8 +609,17 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "اجازه ندادن 🚫"
-
-  - name: "سایتای ایرانی 🇮🇷"
+  - name: توییچ 📡
+    type: select
+    icon: https://www.svgrepo.com/show/343527/twitch-network-communication-interaction-connection.svg
+    proxies:
+      - "نوع انتخاب پروکسی 🔀"
+      - "بدون فیلترشکن 🛡️"
+      - "خودکار (بهترین پینگ) 🤖"
+      - "دستی 🤏🏻"
+      - "پشتیبان (در صورت قطعی) 🧯"
+      - "اجازه ندادن 🚫"
+  - name: سایتای ایرانی 🇮🇷
     type: select
     icon: https://upload.wikimedia.org/wikipedia/commons/3/36/Flag_of_Iran_%28civil%29.svg
     proxies:
@@ -646,8 +629,7 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "اجازه ندادن 🚫"
-
-  - name: "ویندوز 🧊"
+  - name: ویندوز 🧊
     type: select
     icon: https://icon.icepanel.io/Technology/svg/Windows-11.svg
     proxies:
@@ -657,8 +639,7 @@ proxy-groups:
       - "خودکار (بهترین پینگ) 🤖"
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
-
-  - name: "کلودفلر ☁️"
+  - name: کلودفلر ☁️
     type: select
     icon: https://icon.icepanel.io/Technology/svg/Cloudflare.svg
     proxies:
@@ -668,8 +649,27 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "اجازه ندادن 🚫"
-
-  - name: "استریمیو 🎬"
+  - name: گیتهاب 🐙
+    type: select
+    icon: https://www.svgrepo.com/show/355033/github.svg
+    proxies:
+      - "نوع انتخاب پروکسی 🔀"
+      - "بدون فیلترشکن 🛡️"
+      - "خودکار (بهترین پینگ) 🤖"
+      - "دستی 🤏🏻"
+      - "پشتیبان (در صورت قطعی) 🧯"
+      - "اجازه ندادن 🚫"
+  - name: دیسکورد 🗣️
+    type: select
+    icon: https://automatorplugin.com/wp-content/uploads/2024/10/discord-icon.svg
+    proxies:
+      - "نوع انتخاب پروکسی 🔀"
+      - "بدون فیلترشکن 🛡️"
+      - "خودکار (بهترین پینگ) 🤖"
+      - "دستی 🤏🏻"
+      - "پشتیبان (در صورت قطعی) 🧯"
+      - "اجازه ندادن 🚫"
+  - name: استریمیو 🎬
     type: select
     icon: https://stremio.github.io/stremio-addon-guide/img/stremio.svg
     proxies:
@@ -679,8 +679,7 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "اجازه ندادن 🚫"
-
-  - name: "سایتای سانسوری 🤬"
+  - name: سایتای سانسوری 🤬
     type: select
     icon: https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Censorship.svg/300px-Censorship.svg.png
     proxies:
@@ -690,27 +689,24 @@ proxy-groups:
       - "دستی 🤏🏻"
       - "پشتیبان (در صورت قطعی) 🧯"
       - "بدون فیلترشکن 🛡️"
-
   - name: "بدون فیلترشکن 🛡️"
     type: select
     icon: https://www.svgrepo.com/show/6318/connection.svg
-    hidden: true
     proxies:
       - DIRECT
-
+    hidden: true
   - name: "قطع اینترنت ⛔"
     type: select
     icon: https://www.svgrepo.com/show/305372/wifi-off.svg
-    hidden: true
     proxies:
       - REJECT
-
+    hidden: true
   - name: "اجازه ندادن 🚫"
     type: select
     icon: https://www.svgrepo.com/show/444307/gui-ban.svg
-    hidden: true
     proxies:
       - REJECT
+    hidden: true
 
 rules:
   - RULE-SET,DownloadManagers,دانلود منیجر 📥
@@ -751,6 +747,7 @@ rules:
   - RULE-SET,iranserver,سایتای ایرانی 🇮🇷
   - RULE-SET,parspack,سایتای ایرانی 🇮🇷
   - RULE-SET,irasn,سایتای ایرانی 🇮🇷
+  - RULE-SET,ircidr,سایتای ایرانی 🇮🇷
   - RULE-SET,ir,سایتای ایرانی 🇮🇷
   - RULE-SET,category_ir,سایتای ایرانی 🇮🇷
   - RULE-SET,whatsapp,واتس آپ 🟢
@@ -771,18 +768,14 @@ rules:
   - PROCESS-NAME,com.google.android.gms,نوع انتخاب پروکسی 🔀
   - RULE-SET,google-play,نوع انتخاب پروکسی 🔀
   - RULE-SET,google,گوگل 🌍
+  - IP-CIDR,10.10.34.0/24,نوع انتخاب پروکسی 🔀
   - RULE-SET,local_ips,بدون فیلترشکن 🛡️
   - RULE-SET,private,بدون فیلترشکن 🛡️
-  - RULE-SET,ircidr,سایتای ایرانی 🇮🇷
-  - IP-CIDR,10.10.34.0/24,نوع انتخاب پروکسی 🔀
   - MATCH,نوع انتخاب پروکسی 🔀
 `;
 
 // تمپلت بدون قانون (no_rules.yaml)
 const NO_RULES_TEMPLATE_CONTENT = `
-# این تمپلت برای کانفیگ Mihomo بدون قوانین پیچیده است.
-# تمام ترافیک به پروکسی انتخاب شده کاربر هدایت می‌شود.
-
 global-client-fingerprint: chrome
 port: {{mihomo_port}}
 socks-port: {{mihomo_socks_port}}
@@ -885,7 +878,7 @@ proxy-groups:
   - name: "All User Proxies"
     type: select
     proxies:
-      - {{user_proxy_names}}
+      - {{user_proxy_names_list}}
       - DIRECT
 
   - name: "بدون فیلترشکن 🛡️"
@@ -930,22 +923,10 @@ class MihomoConfigGenerator {
     }
 
     getAvailableTemplates() {
-        /**
-         * لیستی از نام تمپلت‌های MiHoMo موجود را برمی‌گرداند.
-         * @returns {Array<string>}
-         */
         return Object.keys(this._templates);
     }
 
     generateConfig(templateName, userProxies, mihomoMainPort = 7890, mihomoSocksPort = 7891) {
-        /**
-         * یک کانفیگ MiHoMo را بر اساس تمپلت انتخاب شده و پروکسی‌های کاربر تولید می‌کند.
-         * @param {string} templateName - نام تمپلت MiHoMo (مثلا 'full_rules').
-         * @param {Array<Object>} userProxies - لیستی از آبجکت‌های پروکسی (از generateMihomoProxyConfig پروتکل‌ها).
-         * @param {number} mihomoMainPort - پورت اصلی برای Mihomo.
-         * @param {number} mihomoSocksPort - پورت SOCKS برای Mihomo.
-         * @returns {string | null} - محتوای YAML کانفیگ نهایی Mihomo به صورت رشته، یا null در صورت خطا.
-         */
         if (!this._templates[templateName]) {
             console.error(`خطا: تمپلت MiHoMo با نام '${templateName}' یافت نشد.`);
             return null;
@@ -958,30 +939,35 @@ class MihomoConfigGenerator {
         templateContent = templateContent.replace(/{{mihomo_socks_port}}/g, String(mihomoSocksPort));
 
         // 2. تولید بخش 'proxies' برای MiHoMo
-        const generatedProxiesList = userProxies; // اینها قبلاً توسط متد پروتکل فرمت شده‌اند
+        const generatedProxiesList = userProxies;
 
         // استخراج نام پروکسی‌ها برای بخش proxy-groups
-        const proxyNames = generatedProxiesList.map(p => `"${p.name}"`);
+        // این کار باید به گونه ای انجام شود که خروجی نهایی:
+        // - "Name1"
+        // - "Name2"
+        // ... باشد، نه با کاما در انتها.
+        const proxyNamesFormatted = generatedProxiesList.map(p => `- "${p.name}"`).join('\n      ');
 
         // تبدیل لیست آبجکت‌های پروکسی به رشته YAML برای تزریق در بخش 'proxies'
         let proxiesYamlString;
         if (generatedProxiesList.length > 0) {
             proxiesYamlString = jsyaml.dump(generatedProxiesList, { indent: 2, lineWidth: -1 });
-            // حذف خط اول که ' -' اضافی دارد اگر لیست تک عنصری باشد
-            // و اطمینان از ایندنت صحیح: هر خط با دو فاصله شروع شود
-            proxiesYamlString = proxiesYamlString.split('\n').map(line => `  ${line}`).join('\n');
+            // اضافه کردن ایندنت صحیح به هر خط برای بخش proxies (فقط برای خطوط غیر خالی)
+            proxiesYamlString = proxiesYamlString.split('\n').filter(line => line.trim() !== '').map(line => `  ${line}`).join('\n');
         } else {
             proxiesYamlString = '  []'; // لیست خالی پروکسی‌ها
         }
         
-        // جایگزینی placeholder مربوط به proxies
-        templateContent = templateContent.replace('proxies:\n  # این بخش با لیست پروکسی‌های کاربر پر می‌شود: {{user_proxies}}', `proxies:\n${proxiesYamlString}`);
+        // جایگزینی placeholder اصلی proxies
+        templateContent = templateContent.replace(/(proxies:\s*\n)/, `proxies:\n${proxiesYamlString}\n`);
 
 
         // 3. جایگزینی نام پروکسی‌ها در 'proxy-groups'
-        // اگر user_proxy_names خالی باشد، DIRECT را به عنوان fallback قرار می‌دهیم
-        const proxyNamesJoined = proxyNames.length > 0 ? proxyNames.join(',\n      - ') : 'DIRECT';
-        templateContent = templateContent.replace(/{{user_proxy_names}}/g, proxyNamesJoined);
+        // اگر proxyNamesFormatted خالی باشد، فقط DIRECT را قرار می‌دهیم.
+        const finalProxyNamesList = generatedProxiesList.length > 0 ? proxyNamesFormatted : '- DIRECT'; // اگر پروکسی نیست، فقط DIRECT
+        
+        // جایگزینی تمام occurrences از {{user_proxy_names_list}}
+        templateContent = templateContent.replace(/{{user_proxy_names_list}}/g, finalProxyNamesList);
 
 
         return templateContent;
