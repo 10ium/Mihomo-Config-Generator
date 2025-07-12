@@ -189,15 +189,54 @@
 
             <div v-if="currentTab === 'view-proxies'">
                 <h2 class="text-2xl font-bold text-gray-700 mb-4">پروکسی‌های ذخیره شده من</h2>
-                <ul v-if="savedProxies.length" class="list-disc pr-5">
-                    <li v-for="proxy in savedProxies" :key="proxy.id" class="text-gray-700 mb-2 flex justify-between items-center">
-                        <div>
-                            <i class="fas fa-server text-green-500 ml-2"></i>
-                            نام: **{{ proxy.name }}** | پروتکل: **{{ proxy.protocol_name }}** | سرور: **{{ proxy.server }}**:{{ proxy.port }}
-                            </div>
-                        <button @click="deleteProxy(proxy.id)" class="bg-red-500 hover:bg-red-700 text-white text-sm py-1 px-2 rounded ml-2">
-                            <i class="fas fa-trash-alt"></i> حذف
+
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">
+                        انتخاب پروکسی‌ها برای ساخت کانفیگ:
+                        <p class="text-xs text-gray-500 mt-1">
+                            (می‌توانید چند پروکسی را انتخاب کنید)
+                        </p>
+                    </label>
+                    <div class="flex flex-wrap items-center mb-2">
+                        <button @click="selectAllProxiesForMihomo" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-1 px-2 rounded ml-2 mb-1">
+                            انتخاب همه
                         </button>
+                        <button @click="clearAllProxiesForMihomo" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-1 px-2 rounded ml-2 mb-1">
+                            لغو انتخاب همه
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">
+                        انتخاب پروکسی‌ها برای حذف:
+                    </label>
+                    <div class="flex flex-wrap items-center mb-2">
+                        <button @click="selectAllProxiesForDeletion" class="bg-red-200 hover:bg-red-300 text-red-800 text-xs py-1 px-2 rounded ml-2 mb-1">
+                            انتخاب همه
+                        </button>
+                        <button @click="clearAllProxiesForDeletion" class="bg-red-200 hover:bg-red-300 text-red-800 text-xs py-1 px-2 rounded ml-2 mb-1">
+                            لغو انتخاب همه
+                        </button>
+                        <button @click="deleteSelectedProxies" class="bg-red-500 hover:bg-red-700 text-white text-xs py-1 px-2 rounded ml-2 mb-1"
+                                :disabled="!selectedProxiesForDeletion.length">
+                            <i class="fas fa-trash-alt ml-1"></i> حذف انتخاب شده‌ها
+                        </button>
+                    </div>
+                </div>
+
+                <ul v-if="savedProxies.length" class="list-none p-0">
+                    <li v-for="proxy in savedProxies" :key="proxy.id" class="bg-gray-50 p-3 rounded-lg shadow-sm mb-3 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                        <div class="flex items-center mb-2 sm:mb-0 w-full sm:w-auto">
+                            <input type="checkbox" :id="'select-mihomo-' + proxy.id" :value="proxy.id" v-model="selectedMihomoProxyIds" class="ml-2">
+                            <label :for="'select-mihomo-' + proxy.id" class="text-gray-800 text-sm cursor-pointer w-full">
+                                <span class="font-bold">{{ proxy.name }}</span> | پروتکل: {{ proxy.protocol_name }} | سرور: {{ proxy.server }}:{{ proxy.port }}
+                            </label>
+                        </div>
+                        <div class="flex items-center mt-2 sm:mt-0 w-full sm:w-auto justify-end">
+                            <input type="checkbox" :id="'delete-proxy-' + proxy.id" :value="proxy.id" v-model="selectedProxiesForDeletion" class="ml-2">
+                            <label :for="'delete-proxy-' + proxy.id" class="text-red-600 text-sm cursor-pointer ml-1">حذف</label>
+                            </div>
                     </li>
                 </ul>
                 <p v-else class="text-gray-600">هنوز هیچ پروکسی‌ای ذخیره نشده است.</p>
@@ -206,25 +245,10 @@
             <div v-if="currentTab === 'generate-config'">
                 <h2 class="text-2xl font-bold text-gray-700 mb-4">ساخت کانفیگ MiHoMo</h2>
                 
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2">
-                        انتخاب پروکسی‌ها:
-                        <p class="text-xs text-gray-500 mt-1">
-                            (می‌توانید چند پروکسی را انتخاب کنید)
-                        </p>
-                    </label>
-                    <div class="max-h-48 overflow-y-auto border rounded p-2 bg-gray-50">
-                        <div v-for="proxy in filteredSavedProxies" :key="proxy.id" class="flex items-center mb-1">
-                            <input type="checkbox" :id="'proxy-' + proxy.id" :value="proxy.id" v-model="selectedMihomoProxyIds" class="ml-2">
-                            <label :for="'proxy-' + proxy.id" class="text-gray-700 text-sm">
-                                نام: **{{ proxy.name }}** ({{ proxy.protocol_name }}) - {{ proxy.server }}:{{ proxy.port }}
-                            </label>
-                        </div>
-                        <p v-if="!filteredSavedProxies.length" class="text-gray-600 text-sm">
-                            هیچ پروکسی مطابق با فیلترها/انتخاب‌های شما یافت نشد.
-                        </p>
-                    </div>
-                </div>
+                <p class="text-gray-700 text-sm mb-4">
+                    پروکسی‌های انتخاب شده برای تولید کانفیگ از تب "پروکسی‌های من" گرفته می‌شوند.
+                    تعداد پروکسی‌های انتخاب شده: <span class="font-bold text-blue-600">{{ selectedMihomoProxyIds.length }}</span>
+                </p>
 
                 <div class="mb-4">
                     <label for="max-proxies-output" class="block text-gray-700 text-sm font-bold mb-2">

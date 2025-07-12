@@ -24,9 +24,10 @@ new Vue({
         
         // --- تب پروکسی‌های من ---
         savedProxies: [],
+        selectedMihomoProxyIds: [], // ID پروکسی‌های انتخاب شده برای تولید کانفیگ
+        selectedProxiesForDeletion: [], // ID پروکسی‌های انتخاب شده برای حذف
         
         // --- تب ساخت کانفیگ MiHoMo ---
-        selectedMihomoProxyIds: [],
         mihomoTemplates: [],
         selectedMihomoTemplateName: '',
         mihomoMainPort: 7890,
@@ -40,14 +41,14 @@ new Vue({
         
         // --- پیام‌ها ---
         message: '',
-        messageType: '', // 'success' or 'error'
+        messageType: '', // 'success', 'error', 'info'
         copySuccess: false,
     },
     mounted() {
         this.fetchProtocols();
-        this.fetchSavedProxies();
+        this.fetchSavedProxies(); // باید هنگام mount شدن همه رو fetch کنه
         this.fetchMihomoTemplates();
-        this.allProtocolTypes = ProtocolManager.getAllProtocolNames(); // دریافت همه پروتکل‌ها برای فیلتر
+        this.allProtocolTypes = ProtocolManager.getAllProtocolNames();
         this.selectedOutputProtocols = [...this.allProtocolTypes]; // به طور پیش‌فرض همه را انتخاب کن
     },
     computed: {
@@ -60,8 +61,8 @@ new Vue({
                 return true;
             });
         },
-        // پروکسی‌های فیلتر شده بر اساس نوع پروتکل برای انتخاب در تولید کانفیگ
-        filteredSavedProxies() {
+        // پروکسی‌های فیلتر شده بر اساس نوع پروتکل برای نمایش در تب "ساخت کانفیگ"
+        filteredSavedProxiesForConfig() {
             return this.savedProxies.filter(proxy => 
                 this.selectedOutputProtocols.includes(proxy.protocol_name)
             );
@@ -162,7 +163,6 @@ new Vue({
             let decodedContent = content;
             this.detectedProxiesCount = 0; // ریست شمارنده
 
-            // 1. تشخیص و دیکد کردن Base64
             try {
                 if (Base64.isValid(content)) {
                     decodedContent = Base64.decode(content);
@@ -174,7 +174,6 @@ new Vue({
             
             let proxiesToAdd = [];
             
-            // 2. تلاش برای parsing YAML/JSON
             try {
                 const parsedYaml = jsyaml.load(decodedContent);
                 if (parsedYaml && Array.isArray(parsedYaml.proxies)) {
@@ -190,20 +189,15 @@ new Vue({
                 console.log("محتوا YAML/JSON معتبر نیست. تلاش برای استخراج لینک‌ها...", e);
             }
 
-            // 3. تلاش برای استخراج از لینک‌های اشتراک (Vmess, Shadowsocks, ...)
             if (proxiesToAdd.length === 0) {
                 const lines = decodedContent.split('\n').map(line => line.trim()).filter(line => line.length > 0);
                 for (const line of lines) {
                     let proxy = null;
-                    // اینجا باید تمام پروتکل‌های پشتیبانی شده را بررسی کرد
-                    // و logic parsing خاص هر پروتکل را فراخوانی کرد
                     if (line.startsWith("socks5://")) {
                         proxy = this.parseSocks5Link(line);
                     } else if (line.startsWith("http://") || line.startsWith("https://")) {
                         proxy = this.parseHttpLink(line);
                     }
-                    // TODO: اینجا می توانید پروتکل های Vmess, SS, Trojan, ... را هم parse کنید
-                    
                     if (proxy) {
                         proxiesToAdd.push(proxy);
                     } else {
@@ -212,7 +206,7 @@ new Vue({
                 }
             }
 
-            this.detectedProxiesCount = proxiesToAdd.length; // به‌روزرسانی شمارنده
+            this.detectedProxiesCount = proxiesToAdd.length;
 
             if (this.detectedProxiesCount === 0) {
                 this.showMessage('هیچ پروکسی معتبری از محتوای وارد شده یافت نشد. فرمت را بررسی کنید.', 'error');
@@ -235,7 +229,6 @@ new Vue({
                 const configData = { protocol_name: protocolInstance.getName() };
                 const fields = protocolInstance.getConfigFields();
                 
-                // انتقال مقادیر از آبجکت parsedProxy به configData بر اساس id فیلدها
                 fields.forEach(field => {
                     if (proxy[field.id] !== undefined) {
                         configData[field.id] = proxy[field.id];
@@ -243,13 +236,7 @@ new Vue({
                         configData[field.id] = field.default;
                     }
                 });
-
-                // موارد خاص که نام فیلد در Mihomo با id در configFields متفاوت است
-                // (اگر Mihomo 'type' را به عنوان 'protocol_name' ذخیره می کنیم،
-                // نیازی به Map دستی اینجا نیست، فقط باید مطمئن شویم generateMihomoProxyConfig
-                // این مقادیر را صحیح هندل می کند)
                 
-                // Special handling for HTTP headers if present
                 if (proxy.headers && typeof proxy.headers === 'object') {
                     configData.headers = JSON.stringify(proxy.headers);
                 }
@@ -347,10 +334,11 @@ new Vue({
             }
         },
 
-        // --- متدهای مربوط به مدیریت پروکسی‌ها ---
+        // --- متدهای مربوط به مدیریت پروکسی‌ها (در تب "پروکسی‌های من") ---
         fetchSavedProxies() {
             this.savedProxies = ConfigManager.getAllConfigs();
         },
+        // حذف یک پروکسی (متد قبلی)
         deleteProxy(id) {
             if (!confirm('آیا مطمئن هستید که می‌خواهید این پروکسی را حذف کنید؟')) {
                 return;
@@ -358,8 +346,53 @@ new Vue({
             if (ConfigManager.deleteConfig(id)) {
                 this.showMessage('پروکسی با موفقیت حذف شد.', 'success');
                 this.fetchSavedProxies();
+                // مطمئن شو که اگر حذف شد، از لیست انتخاب شده هم پاک بشه
+                this.selectedMihomoProxyIds = this.selectedMihomoProxyIds.filter(proxyId => proxyId !== id);
+                this.selectedProxiesForDeletion = this.selectedProxiesForDeletion.filter(proxyId => proxyId !== id);
             } else {
                 this.showMessage('خطا در حذف پروکسی.', 'error');
+            }
+        },
+        // انتخاب همه پروکسی‌ها برای تولید کانفیگ
+        selectAllProxiesForMihomo() {
+            this.selectedMihomoProxyIds = this.savedProxies.map(proxy => proxy.id);
+        },
+        // لغو انتخاب همه پروکسی‌ها برای تولید کانفیگ
+        clearAllProxiesForMihomo() {
+            this.selectedMihomoProxyIds = [];
+        },
+        // انتخاب همه پروکسی‌ها برای حذف
+        selectAllProxiesForDeletion() {
+            this.selectedProxiesForDeletion = this.savedProxies.map(proxy => proxy.id);
+        },
+        // لغو انتخاب همه پروکسی‌ها برای حذف
+        clearAllProxiesForDeletion() {
+            this.selectedProxiesForDeletion = [];
+        },
+        // حذف پروکسی‌های انتخاب شده
+        deleteSelectedProxies() {
+            if (!this.selectedProxiesForDeletion.length) {
+                this.showMessage('هیچ پروکسی برای حذف انتخاب نشده است.', 'info');
+                return;
+            }
+            if (!confirm(`آیا مطمئن هستید که می‌خواهید ${this.selectedProxiesForDeletion.length} پروکسی انتخاب شده را حذف کنید؟`)) {
+                return;
+            }
+            let deletedCount = 0;
+            for (const id of this.selectedProxiesForDeletion) {
+                if (ConfigManager.deleteConfig(id)) {
+                    deletedCount++;
+                } else {
+                    console.warn(`خطا در حذف پروکسی با ID: ${id}`);
+                }
+            }
+            if (deletedCount > 0) {
+                this.showMessage(`${deletedCount} پروکسی با موفقیت حذف شد.`, 'success');
+                this.fetchSavedProxies(); // رفرش لیست
+                this.selectedMihomoProxyIds = this.selectedMihomoProxyIds.filter(id => !this.selectedProxiesForDeletion.includes(id));
+                this.selectedProxiesForDeletion = []; // خالی کردن لیست حذف
+            } else {
+                this.showMessage('خطا در حذف پروکسی‌ها.', 'error');
             }
         },
 
@@ -384,7 +417,6 @@ new Vue({
 
             let proxiesToInclude = [];
             
-            // فیلتر کردن پروکسی‌ها بر اساس انتخاب کاربر (protocol_name)
             for (const p_id of this.selectedMihomoProxyIds) {
                 const proxyData = ConfigManager.getConfigById(p_id);
                 if (proxyData && this.selectedOutputProtocols.includes(proxyData.protocol_name)) {
@@ -407,16 +439,15 @@ new Vue({
                  return;
             }
 
-            // اعمال محدودیت حداکثر تعداد پروکسی
             if (this.maxProxiesOutput !== null && this.maxProxiesOutput > 0 && proxiesToInclude.length > this.maxProxiesOutput) {
                 proxiesToInclude = proxiesToInclude.slice(0, this.maxProxiesOutput);
-                this.showMessage(`تعداد پروکسی‌ها به ${this.maxProxiesOutput} محدود شد.`, 'info'); // اضافه کردن پیام info
+                this.showMessage(`تعداد پروکسی‌ها به ${this.maxProxiesOutput} محدود شد.`, 'info');
             }
 
 
             const configContent = MihomoConfigGenerator.generateConfig(
                 this.selectedMihomoTemplateName,
-                proxiesToInclude, // استفاده از لیست فیلتر شده و محدود شده
+                proxiesToInclude,
                 this.mihomoMainPort,
                 this.mihomoSocksPort
             );
@@ -455,11 +486,9 @@ new Vue({
                     });
             }
         },
-        // متد برای انتخاب همه پروتکل‌ها
         selectAllProtocols() {
             this.selectedOutputProtocols = [...this.allProtocolTypes];
         },
-        // متد برای عدم انتخاب هیچ پروتکلی
         clearAllProtocols() {
             this.selectedOutputProtocols = [];
         }
@@ -470,26 +499,21 @@ new Vue({
                 this.fetchProtocols();
             } else if (newTab === 'view-proxies') {
                 this.fetchSavedProxies();
+                // ریست انتخاب ها هنگام ورود به تب پروکسی‌های من
+                this.selectedMihomoProxyIds = [];
+                this.selectedProxiesForDeletion = [];
             } else if (newTab === 'generate-config') {
                 this.fetchSavedProxies();
                 this.fetchMihomoTemplates();
                 this.generatedConfigContent = '';
-                // ریست فیلترها و محدودیت‌ها هنگام ورود به این تب
                 this.maxProxiesOutput = null; 
                 this.selectedOutputProtocols = [...this.allProtocolTypes]; 
             } else if (newTab === 'add-proxy') {
                 this.resetAddProxyForm();
-                this.detectedProxiesCount = 0; // ریست شمارنده
+                this.detectedProxiesCount = 0;
                 this.fileContent = '';
                 this.linkInput = '';
             }
-        },
-        // هنگام تغییر محتوای فایل/لینک، شمارنده را ریست کن
-        fileContent() {
-            this.detectedProxiesCount = 0;
-        },
-        linkInput() {
-            this.detectedProxiesCount = 0;
         }
     }
 });
