@@ -82,6 +82,17 @@ dns:
     - '9.9.9.9'
     - '223.5.5.5'
     - '77.88.8.8'
+  proxy-server-nameserver:
+    - '2606:4700:4700::1111'
+    - '2606:4700:4700::1001'
+    - '2001:4860:4860::8888'
+    - '2001:4860:4860::8844'
+    - '1.1.1.1'
+    - '8.8.8.8'
+    - '8.8.4.4'
+    - '9.9.9.9'
+    - '223.5.5.5'
+    - '77.88.8.8'
     - '2400:3200::1'
     - '2a02:6b8::feed:0ff'
     - '2620:fe::fe'
@@ -457,7 +468,7 @@ proxy-groups:
     type: select
     icon: https://www.svgrepo.com/show/372331/cursor-hand-click.svg
     proxies:
-      - {{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود
+      - {{user_proxy_names_list}} 
   - name: "خودکار (بهترین پینگ) 🤖"
     type: url-test
     icon: https://www.svgrepo.com/show/7876/speedometer.svg
@@ -468,7 +479,7 @@ proxy-groups:
     max-failed-times: 6
     lazy: true
     proxies:
-      - {{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود
+      - {{user_proxy_names_list}} 
   - name: "پشتیبان (در صورت قطعی) 🧯"
     type: fallback
     icon: https://www.svgrepo.com/show/415208/backup-cloud-document.svg
@@ -478,7 +489,7 @@ proxy-groups:
     max-failed-times: 3
     lazy: true
     proxies:
-      - {{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود
+      - {{user_proxy_names_list}} 
   - name: دانلود منیجر 📥
     type: select
     icon: https://www.sadeemrdp.com/fonts/apps/IDM-Logo.svg
@@ -772,140 +783,13 @@ rules:
   - RULE-SET,local_ips,بدون فیلترشکن 🛡️
   - RULE-SET,private,بدون فیلترشکن 🛡️
   - MATCH,نوع انتخاب پروکسی 🔀
-`;
-
-// تمپلت بدون قانون (no_rules.yaml)
-const NO_RULES_TEMPLATE_CONTENT = `
-global-client-fingerprint: chrome
-port: {{mihomo_port}}
-socks-port: {{mihomo_socks_port}}
-redir-port: 7892
-mixed-port: 7893
-tproxy-port: 7894
-allow-lan: true
-tcp-concurrent: true
-enable-process: true
-find-process-mode: always
-ipv6: true
-log-level: debug
-secret: ''
-bind-address: '*'
-unified-delay: false
-disable-keep-alive: false
-keep-alive-idle: 30
-keep-alive-interval: 30
-profile:
-  store-selected: true
-  store-fake-ip: true
-
-dns:
-  enable: true
-  ipv6: true
-  respect-rules: false
-  prefer-h3: true
-  cache-algorithm: arc
-  use-system-hosts: true
-  use-host: true
-  listen: 0.0.0.0:53
-  enhanced-mode: fake-ip
-  fake-ip-filter-mode: blacklist
-  fake-ip-range: 198.18.0.1/16
-  fake-ip-filter:
-    - '*.lan'
-    - '*.localdomain'
-    - '*.invalid'
-    - '*.localhost'
-    - '*.test'
-    - '*.local'
-    - '*.home.arpa'
-    - 'time.*.com'
-    - 'ntp.*.com'
-
-  default-nameserver:
-    - 8.8.8.8
-    - 8.8.4.4
-    - 1.0.0.1
-    - 1.1.1.1
-  nameserver:
-    - 'https://dns.nextdns.io/15441b'
-    - 'tls://15441b.dns.nextdns.io'
-  direct-nameserver:
-    - '78.157.42.100'
-    - '78.157.42.101'
-  proxy-server-nameserver:
-    - '2606:4700:4700::1111'
-    - '2606:4700:4700::1001'
-    - '2001:4860:4860::8888'
-    - '2001:4860:4860::8844'
-    - '1.1.1.1'
-    - '8.8.8.8'
-    - '8.8.4.4'
-    - '9.9.9.9'
-    - '223.5.5.5'
-    - '77.88.8.8'
-
-sniffer:
-  enable: true
-  force-dns-mapping: true
-  parse-pure-ip: true
-  override-destination: false
-  sniff:
-    HTTP:
-      ports: [80, 8080, 8880, 2052, 2082, 2086, 2095]
-    TLS:
-      ports: [443, 8443, 2053, 2083, 2087, 2096]
-
-tun:
-  enable: true
-  stack: mixed
-  auto-route: true
-  auto-detect-interface: true
-  auto-redir: true
-  dns-hijack:
-    - "any:53"
-    - "tcp://any:53"
 
 ntp:
   enable: true
   server: "time.apple.com"
   port: 123
   interval: 30
-
-proxies:
-  # این بخش با لیست پروکسی‌های کاربر پر می‌شود: {{user_proxies}}
-
-proxy-groups:
-  - name: "All User Proxies"
-    type: select
-    proxies:
-      - {{user_proxy_names_list}}
-      - DIRECT
-
-  - name: "بدون فیلترشکن 🛡️"
-    type: select
-    icon: https://www.svgrepo.com/show/6318/connection.svg
-    hidden: true
-    proxies:
-      - DIRECT
-
-  - name: "قطع اینترنت ⛔"
-    type: select
-    icon: https://www.svgrepo.com/show/305372/wifi-off.svg
-    hidden: true
-    proxies:
-      - REJECT
-
-  - name: "اجازه ندادن 🚫"
-    type: select
-    icon: https://www.svgrepo.com/show/444307/gui-ban.svg
-    hidden: true
-    proxies:
-      - REJECT
-
-rules:
-  - MATCH,All User Proxies
 `;
-
 
 class MihomoConfigGenerator {
     static _instance = null;
@@ -941,13 +825,6 @@ class MihomoConfigGenerator {
         // 2. تولید بخش 'proxies' برای MiHoMo
         const generatedProxiesList = userProxies;
 
-        // استخراج نام پروکسی‌ها برای بخش proxy-groups
-        // این کار باید به گونه ای انجام شود که خروجی نهایی:
-        // - "Name1"
-        // - "Name2"
-        // ... باشد، نه با کاما در انتها.
-        const proxyNamesFormatted = generatedProxiesList.map(p => `- "${p.name}"`).join('\n      ');
-
         // تبدیل لیست آبجکت‌های پروکسی به رشته YAML برای تزریق در بخش 'proxies'
         let proxiesYamlString;
         if (generatedProxiesList.length > 0) {
@@ -963,11 +840,14 @@ class MihomoConfigGenerator {
 
 
         // 3. جایگزینی نام پروکسی‌ها در 'proxy-groups'
-        // اگر proxyNamesFormatted خالی باشد، فقط DIRECT را قرار می‌دهیم.
-        const finalProxyNamesList = generatedProxiesList.length > 0 ? proxyNamesFormatted : '- DIRECT'; // اگر پروکسی نیست، فقط DIRECT
+        // ساخت لیست نام پروکسی‌ها با فرمت صحیح: - "Proxy Name"
+        const proxyNamesFormattedForGroups = userProxies.map(p => `      - "${p.name}"`).join('\n');
+        
+        // اگر لیست پروکسی‌ها خالی باشد، فقط DIRECT را قرار می‌دهیم
+        const finalProxyNamesListForGroups = userProxies.length > 0 ? proxyNamesFormattedForGroups : '      - DIRECT'; 
         
         // جایگزینی تمام occurrences از {{user_proxy_names_list}}
-        templateContent = templateContent.replace(/{{user_proxy_names_list}}/g, finalProxyNamesList);
+        templateContent = templateContent.replace(/{{user_proxy_names_list}}/g, finalProxyNamesListForGroups);
 
 
         return templateContent;
