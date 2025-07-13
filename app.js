@@ -1,4 +1,4 @@
-// app.js (کد اصلاح شده)
+// app.js (نسخه نهایی اصلاح شده)
 
 import ProtocolManager from './protocols/ProtocolManager.js';
 import ConfigManager from './ConfigManager.js';

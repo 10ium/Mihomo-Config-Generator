@@ -1,4 +1,4 @@
-// protocols/VLESSProxy.js (کد اصلاح شده)
+// protocols/VLESSProxy.js (نسخه نهایی اصلاح شده)
 
 import BaseProtocol from './BaseProtocol.js';
 

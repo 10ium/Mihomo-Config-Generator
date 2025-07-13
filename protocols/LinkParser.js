@@ -1,17 +1,17 @@
-// protocols/LinkParser.js (کد اصلاح شده)
+// protocols/LinkParser.js
 
 /**
- * کلاس LinkParser مسئول تجزیه لینک‌های اشتراک پروکسی از پروتکل‌های مختلف است.
- * این کلاس متدهای استاتیک برای تجزیه فرمت‌های خاص لینک‌ها را ارائه می‌دهد
- * و یک شیء استاندارد شده از پیکربندی پروکسی را برمی‌گرداند.
+ * The LinkParser class is responsible for parsing proxy subscription links from various protocols.
+ * This class provides static methods to parse specific link formats
+ * and returns a standardized proxy configuration object.
  */
 class LinkParser {
 
     /**
-     * لینک SOCKS5 را تجزیه می‌کند.
-     * فرمت مورد انتظار: socks5://[username:password@]server:port[?params][#name]
-     * @param {string} link - لینک SOCKS5.
-     * @returns {Object|null} - شیء پروکسی تجزیه شده یا null در صورت خطا.
+     * Parses a SOCKS5 link.
+     * Expected format: socks5://[username:password@]server:port[?params][#name]
+     * @param {string} link - The SOCKS5 link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
      */
     static parseSocks5Link(link) {
         try {
@@ -25,27 +25,27 @@ class LinkParser {
             if (url.password) proxy.password = decodeURIComponent(url.password);
 
             const params = new URLSearchParams(url.search);
-            // پارامترهای URL همیشه رشته هستند، نیاز به تبدیل نوع دارند
+            // URL parameters are always strings, need type conversion
             if (params.has('tls')) proxy.tls = params.get('tls').toLowerCase() === 'true';
             if (params.has('skip-cert-verify')) proxy['skip-cert-verify'] = params.get('skip-cert-verify').toLowerCase() === 'true';
             if (params.has('udp')) proxy.udp = params.get('udp').toLowerCase() === 'true';
             if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
             if (params.has('fingerprint')) proxy.fingerprint = params.get('fingerprint');
 
-            // نام پروکسی از بخش hash (#) استخراج می‌شود، در غیر این صورت یک نام پیش‌فرض ساخته می‌شود.
+            // The proxy name is extracted from the hash part (#), otherwise a default name is created.
             proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `SOCKS5-${proxy.server}:${proxy.port}`;
             return proxy;
         } catch (e) {
-            console.error("خطا در تجزیه لینک SOCKS5:", link, e);
+            console.error("Error parsing SOCKS5 link:", link, e);
             return null;
         }
     }
 
     /**
-     * لینک HTTP/HTTPS را تجزیه می‌کند.
-     * فرمت مورد انتظار: http(s)://[username:password@]server:port[?params][#name]
-     * @param {string} link - لینک HTTP/HTTPS.
-     * @returns {Object|null} - شیء پروکسی تجزیه شده یا null در صورت خطا.
+     * Parses an HTTP/HTTPS link.
+     * Expected format: http(s)://[username:password@]server:port[?params][#name]
+     * @param {string} link - The HTTP/HTTPS link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
      */
     static parseHttpLink(link) {
         try {
@@ -58,7 +58,7 @@ class LinkParser {
             if (url.username) proxy.username = decodeURIComponent(url.username);
             if (url.password) proxy.password = decodeURIComponent(url.password);
 
-            // تشخیص TLS بر اساس پروتکل (http:// یا https://)
+            // Detect TLS based on protocol (http:// or https://)
             proxy.tls = url.protocol === 'https:';
 
             const params = new URLSearchParams(url.search);
@@ -68,40 +68,40 @@ class LinkParser {
             if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
             if (params.has('headers')) {
                 try {
-                    // هدرها به صورت رشته JSON در URL هستند، باید تجزیه شوند.
+                    // Headers are in JSON string format in the URL, they need to be parsed.
                     proxy.headers = JSON.parse(decodeURIComponent(params.get('headers')));
                 } catch (e) {
-                    console.warn("هدرهای JSON در لینک HTTP نامعتبر است:", params.get('headers'));
+                    console.warn("Invalid JSON headers in HTTP link:", params.get('headers'));
                 }
             }
-            // نام پروکسی از بخش hash (#) استخراج می‌شود، در غیر این صورت یک نام پیش‌فرض ساخته می‌شود.
+            // The proxy name is extracted from the hash part (#), otherwise a default name is created.
             proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `HTTP-${proxy.server}:${proxy.port}`;
             return proxy;
         } catch (e) {
-            console.error("خطا در تجزیه لینک HTTP:", link, e);
+            console.error("Error parsing HTTP link:", link, e);
             return null;
         }
     }
 
     /**
-     * لینک VLESS را تجزیه می‌کند.
-     * فرمت مورد انتظار: vless://uuid@server:port[?params][#name]
-     * این متد پارامترهای URL را به صورت دستی تجزیه می‌کند تا در برابر فرمت‌های پیچیده مقاوم‌تر باشد.
-     * @param {string} link - لینک VLESS.
-     * @returns {Object|null} - شیء پروکسی تجزیه شده یا null در صورت خطا.
+     * Parses a VLESS link.
+     * Expected format: vless://uuid@server:port[?params][#name]
+     * This method manually parses URL parameters for better robustness against malformed paths.
+     * @param {string} link - The VLESS link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
      */
     static parseVlessLink(link) {
         try {
-            // جدا کردن نام (fragment) از بقیه لینک
-            const linkParts = link.substring(8).split('#'); // حذف "vless://" و جدا کردن با #
+            // Separate name (fragment) from the rest of the link
+            const linkParts = link.substring(8).split('#'); // Remove "vless://" and split by #
             const rawLink = linkParts[0];
-            // نام پروکسی از بخش hash (#) استخراج می‌شود، در غیر این صورت یک نام پیش‌فرض ساخته می‌شود.
+            // The proxy name is extracted from the hash part (#), otherwise a default name is created.
             const name = linkParts.length > 1 ? decodeURIComponent(linkParts[1]) : `VLESS-Proxy`;
 
-            // جدا کردن UUID از سرور:پورت و پارامترها
+            // Separate UUID from server:port and parameters
             const atParts = rawLink.split('@');
             if (atParts.length < 2) {
-                console.warn("فرمت لینک VLESS نامعتبر است (فاقد @):", link);
+                console.warn("Invalid VLESS link format (missing @):", link);
                 return null;
             }
 
@@ -113,27 +113,27 @@ class LinkParser {
             const port = parseInt(portStr);
 
             if (!server || isNaN(port)) {
-                console.warn("سرور یا پورت VLESS نامعتبر است:", link);
+                console.warn("Invalid VLESS server or port:", link);
                 return null;
             }
 
             const proxy = {
                 type: "vless",
-                name: name, // استفاده از نام استخراج شده
+                name: name, // Use extracted name
                 server: server,
                 port: port,
                 uuid: uuid,
-                udp: true, // پیش‌فرض برای VLESS، می‌تواند توسط پارامترها بازنویسی شود
-                tls: false, // پیش‌فرض false، در صورت security=tls یا reality به true تنظیم می‌شود
-                network: "tcp" // پیش‌فرض network، می‌تواند توسط پارامتر 'type' بازنویسی شود
+                udp: true, // Default for VLESS, can be overridden by parameters
+                tls: false, // Default false, set to true if security=tls or reality
+                network: "tcp" // Default network, can be overridden by 'type' parameter
             };
 
-            // تجزیه دستی Query String برای مقاومت بیشتر در برابر مسیرهای بدشکل
+            // Manually parse Query String for better robustness against malformed paths
             let paramsMap = new Map();
             if (serverAndPortParams.length > 1) {
                 const queryString = serverAndPortParams[1];
-                // اصلاح: از regex برای تقسیم رشته کوئری استفاده می‌کنیم تا pathهای حاوی '?' را بهتر مدیریت کنیم.
-                // این regex یک جفت key=value یا فقط key را پیدا می‌کند.
+                // Fix: Use regex to split query string to better handle paths containing '?'
+                // This regex finds a key=value pair or just a key.
                 const paramPairs = queryString.match(/[^&;=]+=?[^&;]*/g) || [];
                 paramPairs.forEach(pair => {
                     const eqIndex = pair.indexOf('=');
@@ -147,10 +147,10 @@ class LinkParser {
                 });
             }
 
-            // مدیریت نوع network/transport
+            // Handle network/transport type
             let networkType = paramsMap.get('type');
             if (networkType) {
-                if (networkType === 'ws' || networkType === 'xhttp') { // xhttp نیز به ws نگاشت می‌شود
+                if (networkType === 'ws' || networkType === 'xhttp') { // xhttp also maps to ws
                     proxy.network = 'ws';
                     const wsOpts = {};
                     if (paramsMap.has('path')) wsOpts.path = paramsMap.get('path');
@@ -163,34 +163,33 @@ class LinkParser {
                     }
                 } else if (['grpc', 'h2', 'http', 'tcp'].includes(networkType)) {
                     proxy.network = networkType;
-                    // MiHoMo برای VLESS با network: tcp نیازی به flow خاصی ندارد مگر اینکه explicitly xtls-rprx-vision باشد
-                    // اما برای network: grpc نیاز به grpc-opts دارد.
+                    // MiHoMo for VLESS with network: tcp does not require a specific flow unless explicitly xtls-rprx-vision
+                    // but for network: grpc, it requires grpc-opts.
                     if (networkType === 'grpc' && paramsMap.has('serviceName')) {
                         proxy['grpc-opts'] = { 'grpc-service-name': paramsMap.get('serviceName') };
                     }
                 }
             }
 
-            // مدیریت TLS/Reality
+            // Handle TLS/Reality
             if (paramsMap.has('security')) {
                 const securityType = paramsMap.get('security');
                 if (securityType === 'tls' || securityType === 'reality') {
                     proxy.tls = true;
                     if (paramsMap.has('sni')) proxy.servername = paramsMap.get('sni');
-                    // 'fp' در لینک‌های VLESS معمولاً به client-fingerprint اشاره دارد
+                    // 'fp' in VLESS links usually refers to client-fingerprint
                     if (paramsMap.has('fp')) proxy['client-fingerprint'] = paramsMap.get('fp'); 
-                    // 'fingerprint' برای اثر انگشت گواهی سرور است، اگر به صراحت در لینک ارائه شود
+                    // 'fingerprint' is for server certificate fingerprint, if explicitly provided in the link
                     if (paramsMap.has('fingerprint')) proxy.fingerprint = paramsMap.get('fingerprint'); 
                     
                     if (paramsMap.has('alpn')) {
                         try {
-                            // ALPN در URL با کاما جدا می‌شود، به آرایه تبدیل می‌شود.
                             proxy.alpn = paramsMap.get('alpn').split(','); 
                         } catch (e) {
-                            console.warn(`فرمت ALPN در لینک VLESS نامعتبر است: ${paramsMap.get('alpn')}`);
+                            console.warn(`Invalid ALPN format in VLESS link: ${paramsMap.get('alpn')}`);
                         }
                     }
-                    // بررسی 'allowInsecure' یا 'skip-cert-verify'
+                    // Check 'allowInsecure' or 'skip-cert-verify'
                     if ((paramsMap.has('allowInsecure') && paramsMap.get('allowInsecure').toLowerCase() === 'true') ||
                         (paramsMap.has('skip-cert-verify') && paramsMap.get('skip-cert-verify').toLowerCase() === 'true')) {
                         proxy['skip-cert-verify'] = true;
@@ -211,11 +210,11 @@ class LinkParser {
                 }
             }
             
-            // سایر پارامترها - اطمینان از نگاشت صحیح به فیلدهای MiHoMo
+            // Other parameters - ensure correct mapping to MiHoMo fields
             if (paramsMap.has('flow')) proxy.flow = paramsMap.get('flow');
             if (paramsMap.has('packet-encoding')) proxy['packet-encoding'] = paramsMap.get('packet-encoding');
             if (paramsMap.has('ip-version')) proxy['ip-version'] = paramsMap.get('ip-version');
-            // smux در MiHoMo یک شیء با enabled: true/false است، نه فقط یک boolean
+            // smux in MiHoMo is an object with enabled: true/false, not just a boolean
             if (paramsMap.has('smux')) {
                 proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' }; // Fix: Store as object {enabled: boolean}
             } else {
@@ -226,21 +225,906 @@ class LinkParser {
             // As 'extra' is not a standard Mihomo VLESS field and its sub-fields
             // are not directly mappable without more context, we will warn about it.
             if (paramsMap.has('extra')) {
-                console.warn(`پارامتر 'extra' در لینک VLESS یافت شد اما به دلیل عدم پشتیبانی مستقیم در MiHoMo نادیده گرفته شد: ${paramsMap.get('extra')}`);
+                console.warn(`Parameter 'extra' found in VLESS link but ignored due to no direct MiHoMo support: ${paramsMap.get('extra')}`);
             }
 
             return proxy;
 
         } catch (e) {
-            console.error("خطا در تجزیه لینک VLESS:", link, e);
+            console.error("Error parsing VLESS link:", link, e);
             return null;
         }
     }
 
     /**
-     * یک لینک اشتراک پروکسی را بر اساس پیشوند آن تجزیه می‌کند.
-     * @param {string} link - لینک اشتراک پروکسی.
-     * @returns {Object|null} - شیء پروکسی تجزیه شده یا null اگر پروتکل پشتیبانی نشود.
+     * Parses an AnyTLS link.
+     * Expected format: anytls://password@server:port[?params][#name]
+     * @param {string} link - The AnyTLS link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
+     */
+    static parseAnyTLSLink(link) {
+        try {
+            // Separate name (fragment) from the rest of the link
+            const linkParts = link.substring(9).split('#'); // Remove "anytls://" and split by #
+            const rawLink = linkParts[0];
+            const name = linkParts.length > 1 ? decodeURIComponent(linkParts[1]) : `AnyTLS-Proxy`;
+
+            // Separate password from server:port and parameters
+            const atParts = rawLink.split('@');
+            if (atParts.length < 2) {
+                console.warn("Invalid AnyTLS link format (missing @):", link);
+                return null;
+            }
+
+            const password = atParts[0];
+            const serverAndPortParams = atParts[1].split('?');
+            const serverPortPart = serverAndPortParams[0];
+            
+            const [server, portStr] = serverPortPart.split(':');
+            const port = parseInt(portStr);
+
+            if (!server || isNaN(port)) {
+                console.warn("Invalid AnyTLS server or port:", link);
+                return null;
+            }
+
+            const proxy = {
+                type: "anytls",
+                name: name,
+                server: server,
+                port: port,
+                password: password,
+                udp: true, // Default for AnyTLS
+                "skip-cert-verify": true // Default based on provided example
+            };
+
+            let paramsMap = new Map();
+            if (serverAndPortParams.length > 1) {
+                const queryString = serverAndPortParams[1];
+                const paramPairs = queryString.match(/[^&;=]+=?[^&;]*/g) || [];
+                paramPairs.forEach(pair => {
+                    const eqIndex = pair.indexOf('=');
+                    if (eqIndex > -1) {
+                        const key = decodeURIComponent(pair.substring(0, eqIndex));
+                        const value = decodeURIComponent(pair.substring(eqIndex + 1));
+                        paramsMap.set(key, value);
+                    } else if (pair) {
+                        paramsMap.set(decodeURIComponent(pair), '');
+                    }
+                });
+            }
+
+            if (paramsMap.has('client-fingerprint')) proxy['client-fingerprint'] = paramsMap.get('client-fingerprint');
+            if (paramsMap.has('udp')) proxy.udp = paramsMap.get('udp').toLowerCase() === 'true';
+            if (paramsMap.has('idle-session-check-interval')) proxy['idle-session-check-interval'] = parseInt(paramsMap.get('idle-session-check-interval'));
+            if (paramsMap.has('idle-session-timeout')) proxy['idle-session-timeout'] = parseInt(paramsMap.get('idle-session-timeout'));
+            if (paramsMap.has('min-idle-session')) proxy['min-idle-session'] = parseInt(paramsMap.get('min-idle-session'));
+            if (paramsMap.has('sni')) proxy.sni = paramsMap.get('sni');
+            if (paramsMap.has('alpn')) {
+                try {
+                    proxy.alpn = paramsMap.get('alpn').split(',');
+                } catch (e) {
+                    console.warn(`Invalid ALPN format in AnyTLS link: ${paramsMap.get('alpn')}`);
+                }
+            }
+            if (paramsMap.has('skip-cert-verify')) proxy['skip-cert-verify'] = params.get('skip-cert-verify').toLowerCase() === 'true';
+
+            return proxy;
+
+        } catch (e) {
+            console.error("Error parsing AnyTLS link:", link, e);
+            return null;
+        }
+    }
+
+    /**
+     * Parses a WireGuard link.
+     * Expected simplified format: wg://public_key@server:port?ip=...&ipv6=...&allowed_ips=...&preshared_key=...#name
+     * Note: This format is not standard for WireGuard links and does not include the private-key.
+     * @param {string} link - The WireGuard link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
+     */
+    static parseWireGuardLink(link) {
+        try {
+            const linkParts = link.substring(5).split('#'); // Remove "wg://" and split by #
+            const rawLink = linkParts[0];
+            const name = linkParts.length > 1 ? decodeURIComponent(linkParts[1]) : `WireGuard-Proxy`;
+
+            const atParts = rawLink.split('@');
+            if (atParts.length < 2) {
+                console.warn("Invalid WireGuard link format (missing @):", link);
+                return null;
+            }
+
+            const publicKey = atParts[0]; // In wg:// links, public_key comes before @
+            const serverAndPortParams = atParts[1].split('?');
+            const serverPortPart = serverAndPortParams[0];
+            
+            const [server, portStr] = serverPortPart.split(':');
+            const port = parseInt(portStr);
+
+            if (!server || isNaN(port)) {
+                console.warn("Invalid WireGuard server or port:", link);
+                return null;
+            }
+
+            const proxy = {
+                type: "wireguard",
+                name: name,
+                // private-key is not in wg:// links and must be manually entered
+                "private-key": "", // User must fill this
+                udp: true, // Default
+                peers: [ // For simplified mode, create one peer
+                    {
+                        server: server,
+                        port: port,
+                        "public-key": publicKey
+                    }
+                ]
+            };
+
+            let paramsMap = new Map();
+            if (serverAndPortParams.length > 1) {
+                const queryString = serverAndPortParams[1];
+                const paramPairs = queryString.match(/[^&;=]+=?[^&;]*/g) || [];
+                paramPairs.forEach(pair => {
+                    const eqIndex = pair.indexOf('=');
+                    if (eqIndex > -1) {
+                        const key = decodeURIComponent(pair.substring(0, eqIndex));
+                        const value = decodeURIComponent(pair.substring(eqIndex + 1));
+                        paramsMap.set(key, value);
+                    } else if (pair) {
+                        paramsMap.set(decodeURIComponent(pair), '');
+                    }
+                });
+            }
+
+            if (paramsMap.has('ip')) proxy.ip = paramsMap.get('ip');
+            if (paramsMap.has('ipv6')) proxy.ipv6 = paramsMap.get('ipv6');
+            if (paramsMap.has('allowed_ips')) {
+                try {
+                    // allowed_ips can be CSV or URL-encoded JSON array
+                    const allowedIpsStr = paramsMap.get('allowed_ips');
+                    if (allowedIpsStr.startsWith('[') && allowedIpsStr.endsWith(']')) {
+                        proxy.peers[0]["allowed-ips"] = JSON.parse(allowedIpsStr);
+                    } else {
+                        proxy.peers[0]["allowed-ips"] = allowedIpsStr.split(',');
+                    }
+                }
+                catch (e) {
+                    console.warn(`Invalid Allowed IPs in WireGuard link: ${paramsMap.get('allowed_ips')}`, e);
+                    proxy.peers[0]["allowed-ips"] = [paramsMap.get('allowed_ips')]; // Fallback
+                }
+            } else {
+                proxy.peers[0]["allowed-ips"] = ["0.0.0.0/0"]; // Default if not specified
+            }
+            if (paramsMap.has('preshared_key')) proxy.peers[0]["pre-shared-key"] = paramsMap.get('preshared_key');
+            if (paramsMap.has('mtu')) proxy.mtu = parseInt(paramsMap.get('mtu'));
+            if (paramsMap.has('reserved')) {
+                try {
+                    const reservedStr = paramsMap.get('reserved');
+                    if (reservedStr.startsWith('[') && reservedStr.endsWith(']')) {
+                        proxy.peers[0].reserved = JSON.parse(reservedStr);
+                    } else {
+                        proxy.peers[0].reserved = reservedStr; // Keep as string if not array
+                    }
+                } catch (e) {
+                    console.warn(`Invalid Reserved in WireGuard link: ${paramsMap.get('reserved')}`, e);
+                    proxy.peers[0].reserved = paramsMap.get('reserved'); // Fallback
+                }
+            }
+            if (paramsMap.has('remote_dns_resolve')) proxy["remote-dns-resolve"] = paramsMap.get('remote_dns_resolve').toLowerCase() === 'true';
+            if (paramsMap.has('dns')) {
+                try {
+                    const dnsStr = paramsMap.get('dns');
+                    if (dnsStr.startsWith('[') && dnsStr.endsWith(']')) {
+                        proxy.dns = JSON.parse(dnsStr);
+                    } else {
+                        proxy.dns = dnsStr.split(',');
+                    }
+                } catch (e) {
+                    console.warn(`Invalid DNS in WireGuard link: ${paramsMap.get('dns')}`, e);
+                    proxy.dns = [paramsMap.get('dns')]; // Fallback
+                }
+            }
+            // Amnezia WG options are complex and usually not in simple URIs.
+            // If needed, they would require a specific parameter like 'amnezia_opts'
+            // and JSON parsing, similar to 'extra' in VLESS.
+
+            return proxy;
+
+        } catch (e) {
+            console.error("Error parsing WireGuard link:", link, e);
+            return null;
+        }
+    }
+
+    /**
+     * Parses an SSH link.
+     * Expected format: ssh://[username[:password]]@server:port[?params][#name]
+     * Or: ssh://username@server:port?private-key=...&private-key-passphrase=...[#name]
+     * @param {string} link - The SSH link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
+     */
+    static parseSSHLink(link) {
+        try {
+            const url = new URL(link);
+            const proxy = {
+                type: "ssh",
+                server: url.hostname,
+                port: parseInt(url.port) || 22, // Default SSH port is 22
+                udp: true // Default UDP relay for SSH
+            };
+
+            // Extract username and password from URL (if present)
+            if (url.username) proxy.username = decodeURIComponent(url.username);
+            if (url.password) proxy.password = decodeURIComponent(url.password);
+
+            const params = new URLSearchParams(url.search);
+
+            if (params.has('private-key')) proxy['private-key'] = params.get('private-key');
+            if (params.has('private-key-passphrase')) proxy['private-key-passphrase'] = params.get('private-key-passphrase');
+            if (params.has('host-key')) {
+                try {
+                    const hostKeyStr = params.get('host-key');
+                    if (hostKeyStr.startsWith('[') && hostKeyStr.endsWith(']')) {
+                        proxy['host-key'] = JSON.parse(hostKeyStr);
+                    } else {
+                        proxy['host-key'] = [hostKeyStr]; // Assume single host key if not array
+                    }
+                } catch (e) {
+                    console.warn(`Invalid Host Key in SSH link: ${params.get('host-key')}`, e);
+                    proxy['host-key'] = [params.get('host-key')]; // Fallback
+                }
+            }
+            if (params.has('host-key-algorithms')) {
+                try {
+                    const hostKeyAlgosStr = params.get('host-key-algorithms');
+                    if (hostKeyAlgosStr.startsWith('[') && hostKeyAlgosStr.endsWith(']')) {
+                        proxy['host-key-algorithms'] = JSON.parse(hostKeyAlgosStr);
+                    } else {
+                        proxy['host-key-algorithms'] = hostKeyAlgosStr.split(','); // Assume comma-separated if not array
+                    }
+                } catch (e) {
+                    console.warn(`Invalid Host Key Algorithms in SSH link: ${params.get('host-key-algorithms')}`, e);
+                    proxy['host-key-algorithms'] = [params.get('host-key-algorithms')]; // Fallback
+                }
+            }
+            if (params.has('udp')) proxy.udp = params.get('udp').toLowerCase() === 'true';
+
+            // The proxy name is extracted from the hash part (#), otherwise a default name is created.
+            proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `SSH-${proxy.server}:${proxy.port}`;
+            return proxy;
+        } catch (e) {
+            console.error("Error parsing SSH link:", link, e);
+            return null;
+        }
+    }
+
+    /**
+     * Parses a TUIC link.
+     * Note: TUIC link format is not strictly standardized like VLESS/VMess.
+     * This parser attempts to extract based on common patterns:
+     * tuic://[uuid]:[password]@server:port?token=...&params...#name (for V5)
+     * tuic://[token]@server:port?params...#name (for V4 - less common as token is usually in params)
+     * @param {string} link - The TUIC link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
+     */
+    static parseTUICLink(link) {
+        try {
+            const linkParts = link.substring(7).split('#'); // Remove "tuic://" and split by #
+            const rawLink = linkParts[0];
+            const name = linkParts.length > 1 ? decodeURIComponent(linkParts[1]) : `TUIC-Proxy`;
+
+            const atParts = rawLink.split('@');
+            if (atParts.length < 2) {
+                console.warn("Invalid TUIC link format (missing @):", link);
+                return null;
+            }
+
+            const authPart = atParts[0]; // Can be uuid:password or just token
+            const serverAndPortParams = atParts[1].split('?');
+            const serverPortPart = serverAndPortParams[0];
+            
+            const [server, portStr] = serverPortPart.split(':');
+            const port = parseInt(portStr);
+
+            if (!server || isNaN(port)) {
+                console.warn("Invalid TUIC server or port:", link);
+                return null;
+            }
+
+            const proxy = {
+                type: "tuic",
+                name: name,
+                server: server,
+                port: port,
+                // Defaults based on common TUIC usage
+                "heartbeat-interval": 10000,
+                alpn: ["h3"],
+                "disable-sni": false,
+                "reduce-rtt": true,
+                "request-timeout": 8000,
+                "udp-relay-mode": "native",
+                "congestion-controller": "bbr",
+                "max-udp-relay-packet-size": 1500,
+                "fast-open": false,
+                "skip-cert-verify": false,
+                "max-open-streams": 20
+            };
+
+            // Try to parse UUID and Password (V5)
+            const authParts = authPart.split(':');
+            if (authParts.length === 2) {
+                proxy.uuid = authParts[0];
+                proxy.password = authParts[1];
+            } else {
+                // If not UUID:password, assume it might be a token (V4)
+                proxy.token = authPart;
+            }
+
+            let paramsMap = new Map();
+            if (serverAndPortParams.length > 1) {
+                const queryString = serverAndPortParams[1];
+                const paramPairs = queryString.match(/[^&;=]+=?[^&;]*/g) || [];
+                paramPairs.forEach(pair => {
+                    const eqIndex = pair.indexOf('=');
+                    if (eqIndex > -1) {
+                        const key = decodeURIComponent(pair.substring(0, eqIndex));
+                        const value = decodeURIComponent(pair.substring(eqIndex + 1));
+                        paramsMap.set(key, value);
+                    } else if (pair) {
+                        paramsMap.set(decodeURIComponent(pair), '');
+                    }
+                });
+            }
+
+            // Override auth if token/uuid/password are explicitly in params
+            if (paramsMap.has('token')) proxy.token = paramsMap.get('token');
+            if (paramsMap.has('uuid')) proxy.uuid = paramsMap.get('uuid');
+            if (paramsMap.has('password')) proxy.password = paramsMap.get('password');
+
+            if (paramsMap.has('ip')) proxy.ip = paramsMap.get('ip');
+            if (paramsMap.has('heartbeat-interval')) proxy['heartbeat-interval'] = parseInt(paramsMap.get('heartbeat-interval'));
+            if (paramsMap.has('alpn')) {
+                try {
+                    const alpnStr = paramsMap.get('alpn');
+                    if (alpnStr.startsWith('[') && alpnStr.endsWith(']')) {
+                        proxy.alpn = JSON.parse(alpnStr);
+                    } else {
+                        proxy.alpn = alpnStr.split(','); // Assume comma-separated
+                    }
+                } catch (e) {
+                    console.warn(`Invalid ALPN in TUIC link: ${paramsMap.get('alpn')}`, e);
+                    proxy.alpn = [paramsMap.get('alpn')]; // Fallback
+                }
+            }
+            if (paramsMap.has('disable-sni')) proxy['disable-sni'] = paramsMap.get('disable-sni').toLowerCase() === 'true';
+            if (paramsMap.has('reduce-rtt')) proxy['reduce-rtt'] = paramsMap.get('reduce-rtt').toLowerCase() === 'true';
+            if (paramsMap.has('request-timeout')) proxy['request-timeout'] = parseInt(paramsMap.get('request-timeout'));
+            if (paramsMap.has('udp-relay-mode')) proxy['udp-relay-mode'] = paramsMap.get('udp-relay-mode');
+            if (paramsMap.has('congestion-controller')) proxy['congestion-controller'] = paramsMap.get('congestion-controller');
+            if (paramsMap.has('max-udp-relay-packet-size')) proxy['max-udp-relay-packet-size'] = parseInt(paramsMap.get('max-udp-relay-packet-size'));
+            if (paramsMap.has('fast-open')) proxy['fast-open'] = paramsMap.get('fast-open').toLowerCase() === 'true';
+            if (paramsMap.has('skip-cert-verify')) proxy['skip-cert-verify'] = paramsMap.get('skip-cert-verify').toLowerCase() === 'true';
+            if (paramsMap.has('max-open-streams')) proxy['max-open-streams'] = parseInt(paramsMap.get('max-open-streams'));
+            if (paramsMap.has('sni')) proxy.sni = paramsMap.get('sni');
+
+            return proxy;
+
+        } catch (e) {
+            console.error("Error parsing TUIC link:", link, e);
+            return null;
+        }
+    }
+
+    /**
+     * Parses a Hysteria2 link.
+     * Expected format: hysteria2://password@server:port[?params][#name]
+     * @param {string} link - The Hysteria2 link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
+     */
+    static parseHysteria2Link(link) {
+        try {
+            const linkParts = link.substring(12).split('#'); // Remove "hysteria2://" and split by #
+            const rawLink = linkParts[0];
+            const name = linkParts.length > 1 ? decodeURIComponent(linkParts[1]) : `Hysteria2-Proxy`;
+
+            const atParts = rawLink.split('@');
+            if (atParts.length < 2) {
+                console.warn("Invalid Hysteria2 link format (missing @):", link);
+                return null;
+            }
+
+            const password = atParts[0];
+            const serverAndPortParams = atParts[1].split('?');
+            const serverPortPart = serverAndPortParams[0];
+            
+            const [server, portStr] = serverPortPart.split(':');
+            const port = parseInt(portStr);
+
+            if (!server || isNaN(port)) {
+                console.warn("Invalid Hysteria2 server or port:", link);
+                return null;
+            }
+
+            const proxy = {
+                type: "hysteria2",
+                name: name,
+                server: server,
+                port: port,
+                password: password,
+                udp: true, // Default UDP relay for Hysteria2
+                "skip-cert-verify": false // Default for Hysteria2
+            };
+
+            let paramsMap = new Map();
+            if (serverAndPortParams.length > 1) {
+                const queryString = serverAndPortParams[1];
+                const paramPairs = queryString.match(/[^&;=]+=?[^&;]*/g) || [];
+                paramPairs.forEach(pair => {
+                    const eqIndex = pair.indexOf('=');
+                    if (eqIndex > -1) {
+                        const key = decodeURIComponent(pair.substring(0, eqIndex));
+                        const value = decodeURIComponent(pair.substring(eqIndex + 1));
+                        paramsMap.set(key, value);
+                    } else if (pair) {
+                        paramsMap.set(decodeURIComponent(pair), '');
+                    }
+                });
+            }
+
+            if (paramsMap.has('ports')) proxy.ports = paramsMap.get('ports');
+            if (paramsMap.has('up')) proxy.up = paramsMap.get('up');
+            if (paramsMap.has('down')) proxy.down = paramsMap.get('down');
+            if (paramsMap.has('obfs')) proxy.obfs = paramsMap.get('obfs');
+            if (paramsMap.has('obfs-password')) proxy['obfs-password'] = paramsMap.get('obfs-password');
+            if (paramsMap.has('sni')) proxy.sni = paramsMap.get('sni');
+            if (paramsMap.has('skip-cert-verify')) proxy['skip-cert-verify'] = paramsMap.get('skip-cert-verify').toLowerCase() === 'true';
+            if (paramsMap.has('fingerprint')) proxy.fingerprint = paramsMap.get('fingerprint');
+            if (paramsMap.has('alpn')) {
+                try {
+                    proxy.alpn = paramsMap.get('alpn').split(',');
+                } catch (e) {
+                    console.warn(`Invalid ALPN in Hysteria2 link: ${paramsMap.get('alpn')}`);
+                }
+            }
+            if (paramsMap.has('ca')) proxy.ca = paramsMap.get('ca');
+            if (paramsMap.has('ca-str')) proxy['ca-str'] = paramsMap.get('ca-str');
+            if (paramsMap.has('udp')) proxy.udp = paramsMap.get('udp').toLowerCase() === 'true';
+
+            return proxy;
+
+        } catch (e) {
+            console.error("Error parsing Hysteria2 link:", link, e);
+            return null;
+        }
+    }
+
+    /**
+     * Parses a Hysteria (v1) link.
+     * Expected format: hysteria://server:port?auth=...&up=...&down=...&protocol=...&obfs=...&alpn=...&sni=...&skip-cert-verify=...&fast-open=...&disable_mtu_discovery=...&recv-window-conn=...&recv-window=...&ca=...&ca-str=...&fingerprint=...[#name]
+     * @param {string} link - The Hysteria (v1) link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
+     */
+    static parseHysteriaLink(link) {
+        try {
+            const url = new URL(link);
+            const proxy = {
+                type: "hysteria",
+                server: url.hostname,
+                port: parseInt(url.port),
+                udp: true // Default UDP relay for Hysteria
+            };
+
+            const params = new URLSearchParams(url.search);
+
+            if (params.has('auth')) proxy['auth-str'] = params.get('auth'); // auth= in link maps to auth-str
+            if (params.has('up')) proxy.up = params.get('up');
+            if (params.has('down')) proxy.down = params.get('down');
+            if (params.has('protocol')) proxy.protocol = params.get('protocol');
+            if (params.has('obfs')) proxy.obfs = params.get('obfs');
+            if (params.has('alpn')) {
+                try {
+                    proxy.alpn = params.get('alpn').split(',');
+                } catch (e) {
+                    console.warn(`Invalid ALPN in Hysteria link: ${params.get('alpn')}`);
+                }
+            }
+            if (params.has('sni')) proxy.sni = params.get('sni');
+            if (params.has('skip-cert-verify')) proxy['skip-cert-verify'] = params.get('skip-cert-verify').toLowerCase() === 'true';
+            if (params.has('fast-open')) proxy['fast-open'] = params.get('fast-open').toLowerCase() === 'true';
+            if (params.has('disable_mtu_discovery')) proxy['disable_mtu_discovery'] = params.get('disable_mtu_discovery').toLowerCase() === 'true';
+            if (params.has('recv-window-conn')) proxy['recv-window-conn'] = parseInt(params.get('recv-window-conn'));
+            if (params.has('recv-window')) proxy['recv-window'] = parseInt(params.get('recv-window'));
+            if (params.has('ca')) proxy.ca = params.get('ca');
+            if (params.has('ca-str')) proxy['ca-str'] = params.get('ca-str');
+            if (params.has('fingerprint')) proxy.fingerprint = params.get('fingerprint');
+            if (params.has('ports')) proxy.ports = params.get('ports'); // Port jumping string
+
+            // The proxy name is extracted from the hash part (#), otherwise a default name is created.
+            proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `Hysteria-${proxy.server}:${proxy.port}`;
+            return proxy;
+        } catch (e) {
+            console.error("Error parsing Hysteria link:", link, e);
+            return null;
+        }
+    }
+
+    /**
+     * Parses a Trojan link.
+     * Expected format: trojan://password@server:port?params...#name
+     * @param {string} link - The Trojan link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
+     */
+    static parseTrojanLink(link) {
+        try {
+            const linkParts = link.substring(8).split('#'); // Remove "trojan://" and split by #
+            const rawLink = linkParts[0];
+            const name = linkParts.length > 1 ? decodeURIComponent(linkParts[1]) : `Trojan-Proxy`;
+
+            const atParts = rawLink.split('@');
+            if (atParts.length < 2) {
+                console.warn("Invalid Trojan link format (missing @):", link);
+                return null;
+            }
+
+            const password = atParts[0];
+            const serverAndPortParams = atParts[1].split('?');
+            const serverPortPart = serverAndPortParams[0];
+            
+            const [server, portStr] = serverPortPart.split(':');
+            const port = parseInt(portStr);
+
+            if (!server || isNaN(port)) {
+                console.warn("Invalid Trojan server or port:", link);
+                return null;
+            }
+
+            const proxy = {
+                type: "trojan",
+                name: name,
+                server: server,
+                port: port,
+                password: password,
+                udp: true, // Default UDP relay for Trojan
+                "skip-cert-verify": false, // Default as per MiHoMo docs
+                network: "tcp" // Default transport layer
+            };
+
+            let paramsMap = new Map();
+            if (serverAndPortParams.length > 1) {
+                const queryString = serverAndPortParams[1];
+                const paramPairs = queryString.match(/[^&;=]+=?[^&;]*/g) || [];
+                paramPairs.forEach(pair => {
+                    const eqIndex = pair.indexOf('=');
+                    if (eqIndex > -1) {
+                        const key = decodeURIComponent(pair.substring(0, eqIndex));
+                        const value = decodeURIComponent(pair.substring(eqIndex + 1));
+                        paramsMap.set(key, value);
+                    } else if (pair) {
+                        paramsMap.set(decodeURIComponent(pair), '');
+                    }
+                });
+            }
+
+            if (paramsMap.has('udp')) proxy.udp = paramsMap.get('udp').toLowerCase() === 'true';
+            if (paramsMap.has('sni')) proxy.sni = paramsMap.get('sni');
+            if (paramsMap.has('alpn')) {
+                try {
+                    proxy.alpn = paramsMap.get('alpn').split(',');
+                } catch (e) {
+                    console.warn(`Invalid ALPN in Trojan link: ${paramsMap.get('alpn')}`);
+                }
+            }
+            if (paramsMap.has('client-fingerprint')) proxy['client-fingerprint'] = paramsMap.get('client-fingerprint');
+            if (paramsMap.has('fingerprint')) proxy.fingerprint = paramsMap.get('fingerprint');
+            if (paramsMap.has('skip-cert-verify')) proxy['skip-cert-verify'] = paramsMap.get('skip-cert-verify').toLowerCase() === 'true';
+            
+            // Shadowsocks Obfuscation (ss-opts)
+            if (paramsMap.has('ss_enabled') && paramsMap.get('ss_enabled').toLowerCase() === 'true') {
+                proxy['ss-opts'] = { enabled: true };
+                if (paramsMap.has('ss_method')) proxy['ss-opts'].method = paramsMap.get('ss_method');
+                if (paramsMap.has('ss_password')) proxy['ss-opts'].password = paramsMap.get('ss_password');
+            } else {
+                proxy['ss-opts'] = { enabled: false };
+            }
+
+            // Reality Options
+            if (paramsMap.has('pbk') || paramsMap.has('sid')) {
+                const realityOpts = {};
+                if (paramsMap.has('pbk')) realityOpts['public-key'] = paramsMap.get('pbk');
+                if (paramsMap.has('sid')) realityOpts['short-id'] = paramsMap.get('sid');
+                proxy['reality-opts'] = realityOpts;
+            } else {
+                proxy['reality-opts'] = {};
+            }
+
+            if (paramsMap.has('network')) proxy.network = paramsMap.get('network');
+            if (paramsMap.has('smux')) proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' };
+            else { proxy.smux = { enabled: false }; } // Default if not specified
+
+            return proxy;
+
+        } catch (e) {
+            console.error("Error parsing Trojan link:", link, e);
+            return null;
+        }
+    }
+
+    /**
+     * Parses a VMess link.
+     * Note: VMess links are typically base64 encoded. This parser assumes the link is already decoded.
+     * Expected format (decoded): vmess://uuid@server:port?params...#name
+     * @param {string} link - The VMess link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
+     */
+    static parseVMessLink(link) {
+        try {
+            const linkParts = link.substring(8).split('#'); // Remove "vmess://" and split by #
+            const rawLink = linkParts[0];
+            const name = linkParts.length > 1 ? decodeURIComponent(linkParts[1]) : `VMess-Proxy`;
+
+            const atParts = rawLink.split('@');
+            if (atParts.length < 2) {
+                console.warn("Invalid VMess link format (missing @):", link);
+                return null;
+            }
+
+            const uuid = atParts[0];
+            const serverAndPortParams = atParts[1].split('?');
+            const serverPortPart = serverAndPortParams[0];
+            
+            const [server, portStr] = serverPortPart.split(':');
+            const port = parseInt(portStr);
+
+            if (!server || isNaN(port)) {
+                console.warn("Invalid VMess server or port:", link);
+                return null;
+            }
+
+            const proxy = {
+                type: "vmess",
+                name: name,
+                server: server,
+                port: port,
+                uuid: uuid,
+                alterId: 0, // Default alterId
+                cipher: "auto", // Default cipher
+                udp: true, // Default UDP relay
+                tls: false, // Default TLS
+                network: "tcp" // Default network
+            };
+
+            let paramsMap = new Map();
+            if (serverAndPortParams.length > 1) {
+                const queryString = serverAndPortParams[1];
+                const paramPairs = queryString.match(/[^&;=]+=?[^&;]*/g) || [];
+                paramPairs.forEach(pair => {
+                    const eqIndex = pair.indexOf('=');
+                    if (eqIndex > -1) {
+                        const key = decodeURIComponent(pair.substring(0, eqIndex));
+                        const value = decodeURIComponent(pair.substring(eqIndex + 1));
+                        paramsMap.set(key, value);
+                    } else if (pair) {
+                        paramsMap.set(decodeURIComponent(pair), '');
+                    }
+                });
+            }
+
+            if (paramsMap.has('alterId')) proxy.alterId = parseInt(paramsMap.get('alterId'));
+            if (paramsMap.has('cipher')) proxy.cipher = paramsMap.get('cipher');
+            if (paramsMap.has('packet-encoding')) proxy['packet-encoding'] = paramsMap.get('packet-encoding');
+            if (paramsMap.has('global-padding')) proxy['global-padding'] = paramsMap.get('global-padding').toLowerCase() === 'true';
+            if (paramsMap.has('authenticated-length')) proxy['authenticated-length'] = paramsMap.get('authenticated-length').toLowerCase() === 'true';
+            
+            // TLS fields
+            if (paramsMap.has('tls')) proxy.tls = paramsMap.get('tls').toLowerCase() === 'true';
+            if (paramsMap.has('servername')) proxy.servername = paramsMap.get('servername');
+            if (paramsMap.has('alpn')) {
+                try {
+                    proxy.alpn = paramsMap.get('alpn').split(',');
+                } catch (e) {
+                    console.warn(`Invalid ALPN in VMess link: ${paramsMap.get('alpn')}`);
+                }
+            }
+            if (paramsMap.has('fingerprint')) proxy.fingerprint = paramsMap.get('fingerprint');
+            if (paramsMap.has('client-fingerprint')) proxy['client-fingerprint'] = paramsMap.get('client-fingerprint');
+            if (paramsMap.has('skip-cert-verify')) proxy['skip-cert-verify'] = paramsMap.get('skip-cert-verify').toLowerCase() === 'true';
+            
+            // Reality Options
+            if (paramsMap.has('pbk') || paramsMap.has('sid')) {
+                const realityOpts = {};
+                if (paramsMap.has('pbk')) realityOpts['public-key'] = paramsMap.get('pbk');
+                if (paramsMap.has('sid')) realityOpts['short-id'] = paramsMap.get('sid');
+                proxy['reality-opts'] = realityOpts;
+            } else {
+                proxy['reality-opts'] = {};
+            }
+
+            // Network and its options
+            if (paramsMap.has('network')) proxy.network = paramsMap.get('network');
+            if (paramsMap.has('smux')) proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' };
+            else { proxy.smux = { enabled: false }; } // Default if not specified
+
+            // Transport specific options (ws-opts, grpc-opts, http-opts, h2-opts)
+            // These would typically be complex JSON strings in URL parameters,
+            // which are not standard for VMess links. If they appear,
+            // they would need custom parsing similar to 'extra' in VLESS.
+            // For now, we'll assume they are not directly in the link params.
+            // If you encounter links with these, you'll need to extend this.
+
+            if (paramsMap.has('udp')) proxy.udp = paramsMap.get('udp').toLowerCase() === 'true'; // Override default UDP
+
+            return proxy;
+
+        } catch (e) {
+            console.error("Error parsing VMess link:", link, e);
+            return null;
+        }
+    }
+
+
+    /**
+     * Parses a Snell link.
+     * Expected format: snell://server:port?psk=...&version=...&obfs=...&obfs_host=...[#name]
+     * @param {string} link - The Snell link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
+     */
+    static parseSnellLink(link) {
+        try {
+            const url = new URL(link);
+            const proxy = {
+                type: "snell",
+                server: url.hostname,
+                port: parseInt(url.port),
+                udp: true // Default to true, will be set to false for v1/v2 in generateMihomoProxyConfig
+            };
+
+            const params = new URLSearchParams(url.search);
+
+            if (params.has('psk')) proxy.psk = params.get('psk');
+            if (params.has('version')) proxy.version = params.get('version');
+            
+            // Obfuscation options
+            if (params.has('obfs')) {
+                const obfsOpts = {};
+                obfsOpts.mode = params.get('obfs'); // e.g., http, tls
+                if (params.has('obfs_host')) { // Assuming obfs_host for compatibility
+                    obfsOpts.host = params.get('obfs_host');
+                } else if (params.has('obfs-host')) { // Also check for hyphenated version
+                    obfsOpts.host = params.get('obfs-host');
+                }
+                proxy['obfs-opts'] = obfsOpts;
+            } else {
+                proxy['obfs-opts'] = {}; // Default to empty object if no obfs param
+            }
+
+            // The proxy name is extracted from the hash part (#), otherwise a default name is created.
+            proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `Snell-${proxy.server}:${proxy.port}`;
+            return proxy;
+        } catch (e) {
+            console.error("Error parsing Snell link:", link, e);
+            return null;
+        }
+    }
+
+
+    /**
+     * Parses a Mieru link.
+     * Expected format: mieru://username:password@server:port?port-range=...&transport=...&multiplexing=...[#name]
+     * Note: Mieru links are not standard and this is a custom interpretation.
+     * @param {string} link - The Mieru link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
+     */
+    static parseMieruLink(link) {
+        try {
+            const url = new URL(link);
+            const proxy = {
+                type: "mieru",
+                server: url.hostname,
+                udp: true // Default UDP relay for Mieru
+            };
+
+            // Extract username and password from URL (if present)
+            if (url.username) proxy.username = decodeURIComponent(url.username);
+            if (url.password) proxy.password = decodeURIComponent(url.password);
+
+            // Port or Port Range
+            if (url.port) {
+                proxy.port = parseInt(url.port);
+            }
+
+            const params = new URLSearchParams(url.search);
+
+            if (params.has('port-range')) proxy['port-range'] = params.get('port-range');
+            if (params.has('transport')) proxy.transport = params.get('transport');
+            if (params.has('multiplexing')) proxy.multiplexing = params.get('multiplexing');
+            if (params.has('udp')) proxy.udp = params.get('udp').toLowerCase() === 'true';
+
+            // The proxy name is extracted from the hash part (#), otherwise a default name is created.
+            proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `Mieru-${proxy.server}:${proxy.port || proxy['port-range']}`;
+            return proxy;
+        } catch (e) {
+            console.error("Error parsing Mieru link:", link, e);
+            return null;
+        }
+    }
+
+    /**
+     * Parses an SSR link.
+     * Expected format: ssr://<base64_encoded_info>#<name>
+     * where base64_encoded_info is server:port:protocol:method:obfs:password_base64/?obfs_param=...&protocol_param=...
+     * @param {string} link - The SSR link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
+     */
+    static parseSSRLink(link) {
+        try {
+            const base64Part = link.substring(6).split('#')[0]; // Remove "ssr://" and fragment
+            const name = link.split('#')[1] ? decodeURIComponent(link.split('#')[1]) : `SSR-Proxy`;
+
+            const decoded = Base64.decode(base64Part);
+            const mainParts = decoded.split(':');
+            if (mainParts.length < 6) {
+                console.warn("Invalid SSR link format (not enough main parts):", link);
+                return null;
+            }
+
+            const server = mainParts[0];
+            const port = parseInt(mainParts[1]);
+            const protocol = mainParts[2];
+            const cipher = mainParts[3];
+            const obfs = mainParts[4];
+            const passwordBase64AndParams = mainParts.slice(5).join(':'); // Rest of it is password + params
+
+            const passwordParts = passwordBase64AndParams.split('/?');
+            const password = Base64.decode(passwordParts[0]);
+
+            const proxy = {
+                type: "ssr",
+                name: name,
+                server: server,
+                port: port,
+                cipher: cipher,
+                password: password,
+                obfs: obfs,
+                protocol: protocol,
+                udp: true // Default UDP relay for SSR
+            };
+
+            let paramsMap = new Map();
+            if (passwordParts.length > 1) {
+                const queryString = passwordParts[1];
+                const paramPairs = queryString.match(/[^&;=]+=?[^&;]*/g) || [];
+                paramPairs.forEach(pair => {
+                    const eqIndex = pair.indexOf('=');
+                    if (eqIndex > -1) {
+                        const key = decodeURIComponent(pair.substring(0, eqIndex));
+                        const value = decodeURIComponent(pair.substring(eqIndex + 1));
+                        paramsMap.set(key, value);
+                    } else if (pair) {
+                        paramsMap.set(decodeURIComponent(pair), '');
+                    }
+                });
+            }
+
+            if (paramsMap.has('obfsparam')) proxy['obfs-param'] = paramsMap.get('obfsparam'); // obfsparam in link
+            if (paramsMap.has('protoparam')) proxy['protocol-param'] = paramsMap.get('protoparam'); // protoparam in link
+            if (paramsMap.has('udp')) proxy.udp = paramsMap.get('udp').toLowerCase() === 'true';
+
+            return proxy;
+
+        } catch (e) {
+            console.error("Error parsing SSR link:", link, e);
+            return null;
+        }
+    }
+
+
+    /**
+     * Parses a proxy subscription link based on its prefix.
+     * @param {string} link - The proxy subscription link.
+     * @returns {Object|null} - The parsed proxy object or null if the protocol is not supported.
      */
     static parse(link) {
         if (link.startsWith("socks5://")) {
@@ -249,10 +1133,165 @@ class LinkParser {
             return LinkParser.parseHttpLink(link);
         } else if (link.startsWith("vless://")) {
             return LinkParser.parseVlessLink(link);
+        } else if (link.startsWith("anytls://")) {
+            return LinkParser.parseAnyTLSLink(link);
+        } else if (link.startsWith("wg://") || link.startsWith("wireguard://")) {
+            return LinkParser.parseWireGuardLink(link);
+        } else if (link.startsWith("ssh://")) {
+            return LinkParser.parseSSHLink(link);
+        } else if (link.startsWith("tuic://")) {
+            return LinkParser.parseTUICLink(link);
+        } else if (link.startsWith("hysteria2://")) {
+            return LinkParser.parseHysteria2Link(link);
+        } else if (link.startsWith("hysteria://")) {
+            return LinkParser.parseHysteriaLink(link);
+        } else if (link.startsWith("trojan://")) {
+            return LinkParser.parseTrojanLink(link);
+        } else if (link.startsWith("vmess://")) {
+            return LinkParser.parseVMessLink(link);
+        } else if (link.startsWith("snell://")) {
+            return LinkParser.parseSnellLink(link);
+        } else if (link.startsWith("mieru://")) {
+            return LinkParser.parseMieruLink(link);
+        } else if (link.startsWith("ssr://")) {
+            return LinkParser.parseSSRLink(link);
+        } else if (link.startsWith("ss://")) { // Added
+            return LinkParser.parseSSLink(link);
         }
-        // TODO: اینجا می‌توانید پروتکل‌های Vmess, SS, Trojan, ... را هم اضافه کنید
-        // با فراخوانی متدهای parseVmessLink, parseSsLink و غیره.
-        return null; // پروتکل ناشناخته
+        // TODO: You can also add other protocols here
+        return null; // Unknown protocol
+    }
+
+    /**
+     * Parses an SS link.
+     * Expected format: ss://<base64_encoded_info>#<name>
+     * where base64_encoded_info is method:password@server:port
+     * Parameters like plugin, udp-over-tcp, etc., are expected as URL query parameters after base64 part.
+     * @param {string} link - The SS link.
+     * @returns {Object|null} - The parsed proxy object or null on error.
+     */
+    static parseSSLink(link) {
+        try {
+            const hashIndex = link.indexOf('#');
+            const queryIndex = link.indexOf('?');
+
+            let base64PartEnd = link.length;
+            if (hashIndex !== -1 && queryIndex !== -1) {
+                base64PartEnd = Math.min(hashIndex, queryIndex);
+            } else if (hashIndex !== -1) {
+                base64PartEnd = hashIndex;
+            } else if (queryIndex !== -1) {
+                base64PartEnd = queryIndex;
+            }
+
+            const base64EncodedInfo = link.substring(5, base64PartEnd); // Remove "ss://"
+            const name = hashIndex !== -1 ? decodeURIComponent(link.substring(hashIndex + 1)) : `SS-Proxy`;
+
+            const decodedInfo = Base64.decode(base64EncodedInfo);
+            
+            // Extract method, password, server, port from decoded info
+            const atIndex = decodedInfo.indexOf('@');
+            if (atIndex === -1) {
+                console.warn("Invalid SS link format (missing @ in decoded info):", link);
+                return null;
+            }
+            const authPart = decodedInfo.substring(0, atIndex);
+            const serverPortPart = decodedInfo.substring(atIndex + 1);
+
+            const methodPassParts = authPart.split(':');
+            let cipher = methodPassParts[0];
+            let password = methodPassParts.slice(1).join(':'); // Password can contain colons
+
+            const [server, portStr] = serverPortPart.split(':');
+            const port = parseInt(portStr);
+
+            if (!server || isNaN(port) || !cipher || !password) {
+                console.warn("Invalid SS link format (missing server, port, cipher, or password in decoded info):", link);
+                return null;
+            }
+
+            const proxy = {
+                type: "ss",
+                name: name,
+                server: server,
+                port: port,
+                cipher: cipher,
+                password: password,
+                udp: true, // Default UDP relay for SS
+                "udp-over-tcp": false,
+                "udp-over-tcp-version": 1,
+                "ip-version": "",
+                plugin: "",
+                "plugin-opts": {},
+                smux: { enabled: false }
+            };
+
+            // Parse URL query parameters from the original link (after base64 part)
+            let paramsMap = new Map();
+            if (queryIndex !== -1 && queryIndex < hashIndex) { // Only if query params exist before hash
+                const queryString = link.substring(queryIndex + 1, hashIndex !== -1 ? hashIndex : link.length);
+                const paramPairs = queryString.match(/[^&;=]+=?[^&;]*/g) || [];
+                paramPairs.forEach(pair => {
+                    const eqIndex = pair.indexOf('=');
+                    if (eqIndex > -1) {
+                        const key = decodeURIComponent(pair.substring(0, eqIndex));
+                        const value = decodeURIComponent(pair.substring(eqIndex + 1));
+                        paramsMap.set(key, value);
+                    } else if (pair) {
+                        paramsMap.set(decodeURIComponent(pair), '');
+                    }
+                });
+            } else if (queryIndex !== -1 && hashIndex === -1) { // Only query params, no hash
+                const queryString = link.substring(queryIndex + 1);
+                 const paramPairs = queryString.match(/[^&;=]+=?[^&;]*/g) || [];
+                paramPairs.forEach(pair => {
+                    const eqIndex = pair.indexOf('=');
+                    if (eqIndex > -1) {
+                        const key = decodeURIComponent(pair.substring(0, eqIndex));
+                        const value = decodeURIComponent(pair.substring(eqIndex + 1));
+                        paramsMap.set(key, value);
+                    } else if (pair) {
+                        paramsMap.set(decodeURIComponent(pair), '');
+                    }
+                });
+            }
+
+            if (paramsMap.has('udp')) proxy.udp = paramsMap.get('udp').toLowerCase() === 'true';
+            if (paramsMap.has('uot')) proxy["udp-over-tcp"] = paramsMap.get('uot').toLowerCase() === 'true'; // Common alias
+            if (paramsMap.has('udp-over-tcp')) proxy["udp-over-tcp"] = paramsMap.get('udp-over-tcp').toLowerCase() === 'true';
+            if (paramsMap.has('uotv')) proxy["udp-over-tcp-version"] = parseInt(paramsMap.get('uotv')); // Common alias
+            if (paramsMap.has('udp-over-tcp-version')) proxy["udp-over-tcp-version"] = parseInt(paramsMap.get('udp-over-tcp-version'));
+            if (paramsMap.has('ip-version')) proxy['ip-version'] = paramsMap.get('ip-version');
+            
+            if (paramsMap.has('plugin')) {
+                proxy.plugin = paramsMap.get('plugin');
+                const pluginOpts = {};
+                // Handle common plugin options from query params
+                if (proxy.plugin === 'obfs') {
+                    if (paramsMap.has('obfs-mode')) pluginOpts.mode = paramsMap.get('obfs-mode');
+                    if (paramsMap.has('obfs-host')) pluginOpts.host = paramsMap.get('obfs-host');
+                } else if (proxy.plugin === 'v2ray-plugin') {
+                    if (paramsMap.has('v2ray-plugin-mode')) pluginOpts.mode = paramsMap.get('v2ray-plugin-mode');
+                    if (paramsMap.has('v2ray-plugin-tls')) pluginOpts.tls = paramsMap.get('v2ray-plugin-tls').toLowerCase() === 'true';
+                    if (paramsMap.has('v2ray-plugin-host')) pluginOpts.host = paramsMap.get('v2ray-plugin-host');
+                    if (paramsMap.has('v2ray-plugin-path')) pluginOpts.path = paramsMap.get('v2ray-plugin-path');
+                    if (paramsMap.has('v2ray-plugin-skip-cert-verify')) pluginOpts['skip-cert-verify'] = paramsMap.get('v2ray-plugin-skip-cert-verify').toLowerCase() === 'true';
+                    // Add more v2ray-plugin options as needed
+                }
+                // For other plugins (gost, shadow-tls, restls), you might need more specific parsing logic
+                // or assume they are configured via UI/manual JSON.
+                proxy['plugin-opts'] = pluginOpts;
+            }
+
+            if (paramsMap.has('smux')) proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' };
+
+
+            return proxy;
+
+        } catch (e) {
+            console.error("Error parsing SS link:", link, e);
+            return null;
+        }
     }
 }
 
