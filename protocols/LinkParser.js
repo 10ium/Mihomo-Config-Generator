@@ -163,7 +163,6 @@ class LinkParser {
                     }
                 } else if (['grpc', 'h2', 'http', 'tcp'].includes(networkType)) {
                     proxy.network = networkType;
-                    // TODO: اگر نیاز است، grpc-opts یا http-opts را بر اساس پارامترهای خاص اضافه کنید.
                     // MiHoMo برای VLESS با network: tcp نیازی به flow خاصی ندارد مگر اینکه explicitly xtls-rprx-vision باشد
                     // اما برای network: grpc نیاز به grpc-opts دارد.
                     if (networkType === 'grpc' && paramsMap.has('serviceName')) {
@@ -218,11 +217,9 @@ class LinkParser {
             if (paramsMap.has('ip-version')) proxy['ip-version'] = paramsMap.get('ip-version');
             // smux در MiHoMo یک شیء با enabled: true/false است، نه فقط یک boolean
             if (paramsMap.has('smux')) {
-                proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' };
+                proxy.smux = paramsMap.get('smux').toLowerCase() === 'true'; // Keep as boolean here
             } else {
-                // اگر smux در لینک نباشد، MiHoMo به طور پیش‌فرض آن را غیرفعال در نظر می‌گیرد.
-                // اما اگر می‌خواهیم به صراحت آن را در پیکربندی قرار دهیم:
-                proxy.smux = { enabled: false };
+                proxy.smux = false; // Explicitly set to false if not in link
             }
 
 

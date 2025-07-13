@@ -328,13 +328,8 @@ class VLESSProxy extends BaseProtocol {
         }
         
         // SMUX option (needs to be an object { enabled: boolean })
-        // userConfig.smux از UI به صورت boolean می‌آید
-        if (userConfig.smux !== undefined) {
-            mihomoConfig.smux = { enabled: userConfig.smux };
-        } else {
-            // اگر smux در userConfig نباشد، به طور پیش‌فرض غیرفعال در نظر گرفته می‌شود
-            mihomoConfig.smux = { enabled: false };
-        }
+        // userConfig.smux از UI یا LinkParser به صورت boolean می‌آید
+        mihomoConfig.smux = { enabled: Boolean(userConfig.smux) }; // اطمینان از اینکه همیشه یک boolean است
 
         // IP Version
         if (userConfig["ip-version"] && userConfig["ip-version"] !== "dual") {

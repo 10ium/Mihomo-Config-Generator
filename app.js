@@ -249,9 +249,9 @@ new Vue({
                         else if (field.type === 'number') {
                             configData[field.id] = parseInt(proxy[mihomoKey]);
                         }
-                        // برای headers, alpn, reality-opts, ws-opts باید از JSON.stringify استفاده کنیم
+                        // برای headers, alpn, reality-opts, ws-opts, grpc-opts باید از JSON.stringify استفاده کنیم
                         // اگر مقدار از قبل یک آبجکت است، آن را به رشته JSON تبدیل می‌کنیم.
-                        else if (['headers', 'alpn', 'reality-opts', 'ws-opts'].includes(field.id) && typeof proxy[mihomoKey] === 'object') {
+                        else if (['headers', 'alpn', 'reality-opts', 'ws-opts', 'grpc-opts'].includes(field.id) && typeof proxy[mihomoKey] === 'object') {
                             configData[field.id] = JSON.stringify(proxy[mihomoKey]);
                         }
                         else {
@@ -462,7 +462,7 @@ new Vue({
         // متد جدید برای نمایش modal تایید
         showConfirmModal(message, callback) {
             const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50';
+            modal.className = 'fixed inset-0 bg-gray-600 bg-opacity50 flex items-center justify-center z-50';
             modal.innerHTML = `
                 <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
                     <p class="text-gray-800 text-lg mb-6">${message}</p>
@@ -498,7 +498,12 @@ new Vue({
                 // selectedMihomoProxyIds در fetchSavedProxies() تنظیم می‌شود
             } else if (newTab === 'generate-config') {
                 this.fetchSavedProxies(); // لیست پروکسی‌ها را بارگذاری می‌کند و همه را انتخاب می‌کند
-                this.fetchMihomoTemplates();
+                this.mihomoTemplates = MihomoConfigGenerator.getAvailableTemplates(); // Ensure templates are fetched
+                if (this.mihomoTemplates.includes('full_rules')) {
+                    this.selectedMihomoTemplateName = 'full_rules';
+                } else if (this.mihomoTemplates.length > 0) {
+                    this.selectedMihomoTemplateName = this.mihomoTemplates[0];
+                }
                 this.generatedConfigContent = '';
                 this.maxProxiesOutput = null;
                 this.selectedOutputProtocols = [...this.allProtocolTypes];
