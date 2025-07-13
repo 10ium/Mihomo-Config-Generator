@@ -38,6 +38,12 @@ class ConfigManager {
         }
     }
 
+    /**
+     * یک کانفیگ جدید را اضافه می‌کند. اگر پروکسی با همین سرور، پورت و پروتکل موجود باشد،
+     * یا اگر نام پروکسی تکراری باشد، یک عدد افزایشی به انتهای نام اضافه می‌کند.
+     * @param {Object} configData - داده‌های پروکسی برای اضافه کردن.
+     * @returns {boolean} - true اگر با موفقیت اضافه شد، false در صورت وجود تکراری از نظر سرور/پورت/پروتکل.
+     */
     addConfig(configData) {
         // حداقل فیلدهای مورد نیاز برای یک پروکسی معتبر
         if (!configData || !configData.protocol_name || !configData.server || !configData.port) {
@@ -45,20 +51,34 @@ class ConfigManager {
             return false;
         }
         
-        // بررسی برای تکرار قبل از افزودن (بر اساس server, port, protocol_name)
-        const isDuplicate = this._configs.some(existingConfig => 
+        // **بررسی برای تکرار از نظر سرور، پورت و پروتکل (جلوی افزودن کپی دقیق را می‌گیرد)**
+        const isExactDuplicate = this._configs.some(existingConfig => 
             existingConfig.server === configData.server &&
             existingConfig.port === configData.port &&
             existingConfig.protocol_name === configData.protocol_name
         );
 
-        if (isDuplicate) {
-            console.warn(`پروکسی تکراری (سرور: ${configData.server}, پورت: ${configData.port}, پروتکل: ${configData.protocol_name}) نادیده گرفته شد.`);
-            return false; // از افزودن تکراری جلوگیری کن
+        if (isExactDuplicate) {
+            console.warn(`پروکسی تکراری از نظر سرور/پورت/پروتکل (سرور: ${configData.server}, پورت: ${configData.port}, پروتکل: ${configData.protocol_name}) نادیده گرفته شد.`);
+            return false; // از افزودن تکراری دقیق جلوگیری کن
         }
 
+        // **بررسی برای تکرار نام پروکسی و اضافه کردن عدد افزایشی**
+        let baseName = configData.name;
+        if (!baseName) { // اگر نامی تعیین نشده باشد، یک نام پیش‌فرض می‌سازیم.
+            baseName = `${configData.protocol_name}-${configData.server}:${configData.port}`;
+        }
+
+        let newName = baseName;
+        let counter = 1;
+        // حلقه می‌زند تا نامی منحصر به فرد پیدا کند
+        while (this._configs.some(existingConfig => existingConfig.name === newName)) {
+            newName = `${baseName} (${counter})`;
+            counter++;
+        }
+        configData.name = newName; // نام نهایی و منحصر به فرد را اختصاص می‌دهد
+
         // استفاده از UUID واقعی برای ID منحصر به فرد
-        // uuidv4() از کتابخانه CDN که در index.html اضافه کرده اید می آید
         configData.id = uuidv4(); 
         this._configs.push(configData);
         this._saveConfigs();
@@ -76,6 +96,20 @@ class ConfigManager {
     updateConfig(configId, newData) {
         const index = this._configs.findIndex(config => config.id === configId);
         if (index !== -1) {
+            // اطمینان حاصل می‌کنیم که نام تغییر یافته هم بررسی شود تا تکراری نباشد
+            // اگر نام تغییر کرده، باید منحصر به فرد بودن آن را بررسی کنیم
+            if (newData.name && newData.name !== this._configs[index].name) {
+                let tempName = newData.name;
+                let counter = 1;
+                let finalName = tempName;
+                // بررسی می‌کنیم که آیا نام جدید با نام‌های موجود تداخل دارد (به جز خودش)
+                while (this._configs.some(existingConfig => existingConfig.id !== configId && existingConfig.name === finalName)) {
+                    finalName = `${tempName} (${counter})`;
+                    counter++;
+                }
+                newData.name = finalName;
+            }
+
             this._configs[index] = { ...this._configs[index], ...newData };
             this._saveConfigs();
             return true;
