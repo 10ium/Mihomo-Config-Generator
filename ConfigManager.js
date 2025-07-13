@@ -39,10 +39,36 @@ class ConfigManager {
     }
 
     /**
-     * یک کانفیگ جدید را اضافه می‌کند. اگر پروکسی با همین سرور، پورت و پروتکل موجود باشد،
-     * یا اگر نام پروکسی تکراری باشد، یک عدد افزایشی به انتهای نام اضافه می‌کند.
+     * یک هش منحصر به فرد برای یک پیکربندی پروکسی (بدون نام و ID) تولید می‌کند.
+     * این هش برای شناسایی پروکسی‌های کاملاً یکسان استفاده می‌شود.
+     * @param {Object} configData - داده‌های پروکسی.
+     * @returns {string} - رشته هش.
+     */
+    _generateProxyHash(configData) {
+        // ایجاد یک کپی از configData و حذف فیلدهای نام و ID که برای شناسایی تکراری‌ها مهم نیستند.
+        const comparableConfig = { ...configData };
+        delete comparableConfig.name;
+        delete comparableConfig.id;
+
+        // برای اطمینان از ترتیب ثابت کلیدها (برای هش ثابت)، آن‌ها را مرتب می‌کنیم.
+        const sortedKeys = Object.keys(comparableConfig).sort();
+        const orderedConfig = {};
+        for (const key of sortedKeys) {
+            orderedConfig[key] = comparableConfig[key];
+        }
+
+        // تبدیل شیء به رشته JSON. JSON.stringify یک هش ساده و قابل اعتماد ایجاد می‌کند.
+        // اگر مقادیر آبجکت‌های تو در تو (مانند headers, ws-opts) از قبل رشته JSON باشند،
+        // JSON.stringify آن‌ها را به درستی در هش شامل می‌کند.
+        return JSON.stringify(orderedConfig);
+    }
+
+    /**
+     * یک کانفیگ جدید را اضافه می‌کند.
+     * 1. ابتدا بررسی می‌کند که آیا پروکسی کاملاً یکسان (بر اساس هش) از قبل وجود دارد یا خیر.
+     * 2. سپس، نام پروکسی را برای جلوگیری از تکرار نام‌ها (با افزودن عدد افزایشی) منحصر به فرد می‌کند.
      * @param {Object} configData - داده‌های پروکسی برای اضافه کردن.
-     * @returns {boolean} - true اگر با موفقیت اضافه شد، false در صورت وجود تکراری از نظر سرور/پورت/پروتکل.
+     * @returns {boolean} - true اگر با موفقیت اضافه شد، false در صورت وجود تکراری از نظر پیکربندی اصلی.
      */
     addConfig(configData) {
         // حداقل فیلدهای مورد نیاز برای یک پروکسی معتبر
@@ -51,15 +77,14 @@ class ConfigManager {
             return false;
         }
         
-        // **بررسی برای تکرار از نظر سرور، پورت و پروتکل (جلوی افزودن کپی دقیق را می‌گیرد)**
+        // **بررسی برای تکرار پیکربندی اصلی (با استفاده از هش)**
+        const newProxyHash = this._generateProxyHash(configData);
         const isExactDuplicate = this._configs.some(existingConfig => 
-            existingConfig.server === configData.server &&
-            existingConfig.port === configData.port &&
-            existingConfig.protocol_name === configData.protocol_name
+            this._generateProxyHash(existingConfig) === newProxyHash
         );
 
         if (isExactDuplicate) {
-            console.warn(`پروکسی تکراری از نظر سرور/پورت/پروتکل (سرور: ${configData.server}, پورت: ${configData.port}, پروتکل: ${configData.protocol_name}) نادیده گرفته شد.`);
+            console.warn(`پروکسی تکراری (پیکربندی اصلی یکسان) نادیده گرفته شد.`);
             return false; // از افزودن تکراری دقیق جلوگیری کن
         }
 

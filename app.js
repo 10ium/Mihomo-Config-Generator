@@ -3,6 +3,7 @@
 import ProtocolManager from './protocols/ProtocolManager.js';
 import ConfigManager from './ConfigManager.js';
 import MihomoConfigGenerator from './MihomoConfigGenerator.js';
+import LinkParser from './protocols/LinkParser.js'; // <-- اضافه شده
 
 new Vue({
     el: '#app',
@@ -201,21 +202,8 @@ new Vue({
             if (proxiesFromInput.length === 0) { // اگر از YAML چیزی استخراج نشد
                 const lines = decodedContent.split('\n').map(line => line.trim()).filter(line => line.length > 0);
                 for (const line of lines) {
-                    let proxy = null;
-                    // اینجا باید تمام پروتکل‌های پشتیبانی شده را بررسی کرد
-                    // و logic parsing خاص هر پروتکل را فراخوانی کرد
-                    if (line.startsWith("socks5://")) {
-                        proxy = this.parseSocks5Link(line);
-                    } else if (line.startsWith("http://") || line.startsWith("https://")) {
-                        proxy = this.parseHttpLink(line);
-                    } else if (line.startsWith("vless://")) {
-                        proxy = this.parseVlessLink(line);
-                    }
-                    // TODO: اینجا می توانید پروتکل های Vmess, SS, Trojan, ... را هم parse کنید
-                    // برای Vmess و SS و Trojan نیاز به logic parsing پیچیده تری است
-                    // به دلیل ساختار پیچیده لینک هایشان که شامل بسیاری از پارامترها و گاهی Base64 هستند.
-                    // if (line.startsWith("vmess://")) { /* ... */ }
-                    // if (line.startsWith("ss://")) { /* ... */ }
+                    // استفاده از LinkParser برای تجزیه لینک‌ها
+                    const proxy = LinkParser.parse(line); // <-- استفاده از LinkParser
                     
                     if (proxy) {
                         proxiesFromInput.push(proxy);
@@ -306,169 +294,8 @@ new Vue({
             this.linkInput = '';
         },
 
-        parseSocks5Link(link) {
-            try {
-                const url = new URL(link);
-                const proxy = {
-                    type: "socks5",
-                    server: url.hostname,
-                    port: parseInt(url.port)
-                };
-                if (url.username) proxy.username = decodeURIComponent(url.username);
-                if (url.password) proxy.password = decodeURIComponent(url.password);
-
-                const params = new URLSearchParams(url.search);
-                // پارامترهای URL همیشه رشته هستند، نیاز به تبدیل نوع دارند
-                if (params.has('tls')) proxy.tls = params.get('tls').toLowerCase() === 'true';
-                if (params.has('skip-cert-verify')) proxy['skip-cert-verify'] = params.get('skip-cert-verify').toLowerCase() === 'true';
-                if (params.has('udp')) proxy.udp = params.get('udp').toLowerCase() === 'true';
-                if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
-                if (params.has('fingerprint')) proxy.fingerprint = params.get('fingerprint');
-
-                proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `SOCKS5-${proxy.server}:${proxy.port}`;
-                return proxy;
-            } catch (e) {
-                console.error("خطا در تجزیه لینک SOCKS5:", link, e);
-                return null;
-            }
-        },
-
-        parseHttpLink(link) {
-            try {
-                const url = new URL(link);
-                const proxy = {
-                    type: "http",
-                    server: url.hostname,
-                    port: parseInt(url.port)
-                };
-                if (url.username) proxy.username = decodeURIComponent(url.username);
-                if (url.password) proxy.password = decodeURIComponent(url.password);
-
-                proxy.tls = url.protocol === 'https:';
-
-                const params = new URLSearchParams(url.search);
-                if (params.has('skip-cert-verify')) proxy['skip-cert-verify'] = params.get('skip-cert-verify').toLowerCase() === 'true';
-                if (params.has('sni')) proxy.sni = params.get('sni');
-                if (params.has('fingerprint')) proxy.fingerprint = params.get('fingerprint');
-                if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
-                if (params.has('headers')) {
-                    try {
-                        proxy.headers = JSON.parse(decodeURIComponent(params.get('headers')));
-                    } catch (e) {
-                        console.warn("هدرهای JSON در لینک نامعتبر است:", params.get('headers'));
-                    }
-                }
-                proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `HTTP-${proxy.server}:${proxy.port}`;
-                return proxy;
-            } catch (e) {
-                console.error("خطا در تجزیه لینک HTTP:", link, e);
-                return null;
-            }
-        },
-
-        parseVlessLink(link) {
-            try {
-                const linkParts = link.substring(8).split('#'); // Remove "vless://" and split by # for name
-                const rawLink = linkParts[0];
-                const name = linkParts.length > 1 ? decodeURIComponent(linkParts[1]) : `VLESS-Proxy`;
-
-                const atParts = rawLink.split('@');
-                if (atParts.length < 2) {
-                    console.warn("Invalid VLESS link format (missing @):", link);
-                    return null;
-                }
-
-                const uuid = atParts[0];
-                const serverAndPortParams = atParts[1].split('?');
-                const serverPortPart = serverAndPortParams[0];
-                
-                const [server, portStr] = serverPortPart.split(':');
-                const port = parseInt(portStr);
-
-                if (!server || isNaN(port)) {
-                    console.warn("Invalid VLESS server or port:", link);
-                    return null;
-                }
-
-                const proxy = {
-                    type: "vless",
-                    name: name, // Use extracted name
-                    server: server,
-                    port: port,
-                    uuid: uuid,
-                    udp: true, // Default for VLESS, can be overridden by params
-                    tls: false, // Default to false, set to true if security=tls or reality
-                    network: "tcp" // Default network, can be overridden by 'type' param
-                };
-
-                if (serverAndPortParams.length > 1) {
-                    const params = new URLSearchParams(serverAndPortParams[1]);
-
-                    if (params.has('flow')) proxy.flow = params.get('flow');
-                    if (params.has('packet-encoding')) proxy['packet-encoding'] = params.get('packet-encoding');
-                    if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
-                    if (params.has('smux')) proxy.smux = params.get('smux').toLowerCase() === 'true';
-
-                    // Handle network/transport type
-                    if (params.has('type')) {
-                        const networkType = params.get('type');
-                        if (networkType === 'ws' || networkType === 'xhttp') {
-                            proxy.network = 'ws';
-                            const wsOpts = {};
-                            if (params.has('path')) wsOpts.path = params.get('path');
-                            if (params.has('host')) {
-                                if (!wsOpts.headers) wsOpts.headers = {};
-                                wsOpts.headers.Host = params.get('host');
-                            }
-                            if (Object.keys(wsOpts).length > 0) {
-                                proxy['ws-opts'] = wsOpts; // Keep as object, app.js will stringify
-                            }
-                        } else if (['grpc', 'h2', 'http', 'tcp'].includes(networkType)) {
-                            proxy.network = networkType;
-                            // Add grpc-opts or http-opts if needed, based on specific parameters
-                        }
-                    }
-
-                    // Handle TLS/Reality
-                    if (params.has('security')) {
-                        const securityType = params.get('security');
-                        if (securityType === 'tls' || securityType === 'reality') {
-                            proxy.tls = true;
-                            if (params.has('sni')) proxy.servername = params.get('sni');
-                            if (params.has('fp')) proxy.fingerprint = params.get('fp'); // 'fp' maps to MiHoMo fingerprint
-                            if (params.has('client-fingerprint')) proxy['client-fingerprint'] = params.get('client-fingerprint'); // explicit client-fingerprint
-                            if (params.has('alpn')) {
-                                try {
-                                    proxy.alpn = params.get('alpn').split(','); // Keep as array, app.js will stringify
-                                } catch (e) {
-                                    console.warn(`Invalid ALPN format in VLESS link: ${params.get('alpn')}`);
-                                }
-                            }
-                            if (params.has('allowInsecure') && params.get('allowInsecure').toLowerCase() === 'true') {
-                                proxy['skip-cert-verify'] = true;
-                            } else if (params.has('skip-cert-verify') && params.get('skip-cert-verify').toLowerCase() === 'true') {
-                                proxy['skip-cert-verify'] = true;
-                            }
-
-                            if (securityType === 'reality') {
-                                const realityOpts = {};
-                                if (params.has('pbk')) realityOpts['public-key'] = params.get('pbk');
-                                if (params.has('sid')) realityOpts['short-id'] = params.get('sid');
-                                if (Object.keys(realityOpts).length > 0) {
-                                    proxy['reality-opts'] = realityOpts; // Keep as object, app.js will stringify
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                return proxy;
-
-            } catch (e) {
-                console.error("خطا در تجزیه لینک VLESS:", link, e);
-                return null;
-            }
-        },
+        // متدهای parseSocks5Link, parseHttpLink, parseVlessLink از اینجا حذف شده‌اند
+        // و به LinkParser.js منتقل شده‌اند.
 
         // --- مدیریت پروکسی‌های ذخیره شده ---
         fetchSavedProxies() {
