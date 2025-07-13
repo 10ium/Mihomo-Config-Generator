@@ -3,6 +3,7 @@
 // وارد کردن کلاس‌های پروتکل
 import HTTPProxy from './HTTPProxy.js';
 import SOCKS5Proxy from './SOCKS5Proxy.js';
+import VLESSProxy from './VLESSProxy.js'; // <-- اضافه شده
 
 class ProtocolManager {
     static _instance = null; // برای پیاده‌سازی Singleton Pattern
@@ -24,7 +25,8 @@ class ProtocolManager {
          */
         const protocolClasses = [
             HTTPProxy,
-            SOCKS5Proxy
+            SOCKS5Proxy,
+            VLESSProxy // <-- اضافه شده
             // پروتکل‌های جدید را در آینده اینجا اضافه کنید (مثلاً VmessProxy, ShadowsocksProxy)
         ];
 

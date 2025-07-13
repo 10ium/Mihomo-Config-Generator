@@ -208,6 +208,8 @@ new Vue({
                         proxy = this.parseSocks5Link(line);
                     } else if (line.startsWith("http://") || line.startsWith("https://")) {
                         proxy = this.parseHttpLink(line);
+                    } else if (line.startsWith("vless://")) { // <-- اضافه شده برای VLESS
+                        proxy = this.parseVlessLink(line);
                     }
                     // TODO: اینجا می توانید پروتکل های Vmess, SS, Trojan, ... را هم parse کنید
                     // برای Vmess و SS و Trojan نیاز به logic parsing پیچیده تری است
@@ -274,8 +276,8 @@ new Vue({
                         else if (field.type === 'number') {
                             configData[field.id] = parseInt(proxy[mihomoKey]);
                         }
-                        // برای headers باید از JSON.stringify استفاده کنیم
-                        else if (field.id === 'headers' && typeof proxy[mihomoKey] === 'object') {
+                        // برای headers, alpn, reality-opts, ws-opts باید از JSON.stringify استفاده کنیم
+                        else if (['headers', 'alpn', 'reality-opts', 'ws-opts'].includes(field.id) && typeof proxy[mihomoKey] === 'object') {
                             configData[field.id] = JSON.stringify(proxy[mihomoKey]);
                         }
                         else {
@@ -374,6 +376,108 @@ new Vue({
                 return proxy;
             } catch (e) {
                 console.error("خطا در تجزیه لینک HTTP:", link, e);
+                return null;
+            }
+        },
+
+        parseVlessLink(link) {
+            try {
+                // VLESS links are typically vless://<uuid>@<server>:<port>?<params>#<name>
+                // Or vless://<base64_encoded_json_config> (less common for share links, more for full configs)
+                // The provided example looks like a YAML proxy definition, not a share link.
+                // Assuming standard share link format: vless://<uuid>@<server>:<port>?<params>#<name>
+                
+                const parts = link.substring(8).split('@'); // Remove "vless://" and split by @
+                if (parts.length < 2) {
+                    console.warn("Invalid VLESS link format (missing @):", link);
+                    return null;
+                }
+
+                const uuid = parts[0];
+                const serverAndPortParams = parts[1].split('?');
+                const serverPortPart = serverAndPortParams[0];
+                
+                const serverPortHash = serverPortPart.split('#');
+                const serverPort = serverPortHash[0];
+                const name = serverPortHash.length > 1 ? decodeURIComponent(serverPortHash[1]) : `VLESS-Proxy`;
+
+                const [server, portStr] = serverPort.split(':');
+                const port = parseInt(portStr);
+
+                if (!server || isNaN(port)) {
+                    console.warn("Invalid VLESS server or port:", link);
+                    return null;
+                }
+
+                const proxy = {
+                    type: "vless",
+                    name: name,
+                    server: server,
+                    port: port,
+                    uuid: uuid,
+                    udp: true // Default for VLESS, can be overridden by params
+                };
+
+                if (serverAndPortParams.length > 1) {
+                    const paramsPart = serverAndPortParams[1];
+                    const params = new URLSearchParams(paramsPart);
+
+                    if (params.has('flow')) proxy.flow = params.get('flow');
+                    if (params.has('encryption')) {
+                        // VLESS links often have encryption=none, but MiHoMo doesn't use it directly
+                        // We'll ignore it for now as it's typically implied by flow or network
+                    }
+                    if (params.has('type')) proxy.network = params.get('type'); // 'type' in VLESS link usually means network
+                    if (params.has('security') && params.get('security') === 'tls') {
+                        proxy.tls = true;
+                        if (params.has('sni')) proxy.servername = params.get('sni');
+                        if (params.has('fp')) proxy.fingerprint = params.get('fp'); // 'fp' for client-fingerprint
+                        if (params.has('allowInsecure')) proxy['skip-cert-verify'] = params.get('allowInsecure').toLowerCase() === 'true';
+                        if (params.has('pbk')) { // Reality public key
+                            if (!proxy['reality-opts']) proxy['reality-opts'] = {};
+                            proxy['reality-opts']['public-key'] = params.get('pbk');
+                        }
+                        if (params.has('sid')) { // Reality short ID
+                            if (!proxy['reality-opts']) proxy['reality-opts'] = {};
+                            proxy['reality-opts']['short-id'] = params.get('sid');
+                        }
+                        if (params.has('alpn')) {
+                            proxy.alpn = JSON.stringify(params.get('alpn').split(',')); // ALPN is comma-separated in URL
+                        }
+                    } else {
+                        proxy.tls = false;
+                    }
+
+                    // WebSocket options
+                    if (proxy.network === 'ws') {
+                        const wsOpts = {};
+                        if (params.has('path')) wsOpts.path = params.get('path');
+                        if (params.has('host')) { // 'host' in VLESS link maps to headers.Host in MiHoMo ws-opts
+                            if (!wsOpts.headers) wsOpts.headers = {};
+                            wsOpts.headers.Host = params.get('host');
+                        }
+                        if (Object.keys(wsOpts).length > 0) {
+                            proxy['ws-opts'] = JSON.stringify(wsOpts);
+                        }
+                    }
+                    
+                    // Other parameters that might map to MiHoMo fields
+                    if (params.has('smux')) proxy.smux = params.get('smux').toLowerCase() === 'true';
+                    if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
+                    if (params.has('packet-encoding')) proxy['packet-encoding'] = params.get('packet-encoding');
+
+                }
+                
+                // Convert reality-opts to JSON string if it was built as an object
+                if (proxy['reality-opts'] && typeof proxy['reality-opts'] === 'object') {
+                    proxy['reality-opts'] = JSON.stringify(proxy['reality-opts']);
+                }
+
+
+                return proxy;
+
+            } catch (e) {
+                console.error("خطا در تجزیه لینک VLESS:", link, e);
                 return null;
             }
         },
