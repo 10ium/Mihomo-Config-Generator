@@ -269,7 +269,7 @@ rule-providers:
     type: http
     format: yaml
     behavior: domain
-    url: "https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/releases/latest/download/category-ads-all.yaml"
+    url: "https://raw.githubusercontent.com/Chocolate4U/Iran-clash-rules/release/category-ads-all.yaml"
     path: ./ruleset/ads.yaml
     interval: 86400
   DownloadManagers:
@@ -435,6 +435,7 @@ rule-providers:
     url: "https://raw.githubusercontent.com/10ium/clash_rules/refs/heads/main/windows.yaml"
     path: ./ruleset/windows.yaml
     interval: 86400
+
 
 proxies:
   # این بخش با لیست پروکسی‌های کاربر پر می‌شود: {{user_proxies}}

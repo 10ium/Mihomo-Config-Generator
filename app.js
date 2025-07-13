@@ -575,16 +575,14 @@ new Vue({
             } else if (newTab === 'view-proxies') {
                 this.fetchSavedProxies();
                 // ریست انتخاب ها هنگام ورود به تب پروکسی‌های من
-                this.selectedMihomoProxyIds = [];
-                this.selectedProxiesForDeletion = [];
+                this.selectedProxiesForDeletion = []; // فقط انتخاب‌های حذف را ریست می‌کنیم
+                // selectedMihomoProxyIds در fetchSavedProxies() تنظیم می‌شود
             } else if (newTab === 'generate-config') {
-                this.fetchSavedProxies(); // لیست پروکسی‌ها را بارگذاری می‌کند
+                this.fetchSavedProxies(); // لیست پروکسی‌ها را بارگذاری می‌کند و همه را انتخاب می‌کند
                 this.fetchMihomoTemplates();
                 this.generatedConfigContent = '';
                 this.maxProxiesOutput = null;
                 this.selectedOutputProtocols = [...this.allProtocolTypes];
-                // این خط اطمینان می‌دهد که هنگام ورود به تب "ساخت کانفیگ"، همه پروکسی‌ها انتخاب شوند
-                this.selectedMihomoProxyIds = this.savedProxies.map(proxy => proxy.id);
             } else if (newTab === 'add-proxy') {
                 this.resetAddProxyForm();
                 this.detectedProxiesCount = 0;
