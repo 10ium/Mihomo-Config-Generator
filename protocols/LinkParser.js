@@ -132,14 +132,17 @@ class LinkParser {
             let paramsMap = new Map();
             if (serverAndPortParams.length > 1) {
                 const queryString = serverAndPortParams[1];
-                queryString.split('&').forEach(pair => {
+                // اصلاح: از regex برای تقسیم رشته کوئری استفاده می‌کنیم تا pathهای حاوی '?' را بهتر مدیریت کنیم.
+                // این regex یک جفت key=value یا فقط key را پیدا می‌کند.
+                const paramPairs = queryString.match(/[^&;=]+=?[^&;]*/g) || [];
+                paramPairs.forEach(pair => {
                     const eqIndex = pair.indexOf('=');
                     if (eqIndex > -1) {
                         const key = decodeURIComponent(pair.substring(0, eqIndex));
                         const value = decodeURIComponent(pair.substring(eqIndex + 1));
                         paramsMap.set(key, value);
                     } else if (pair) {
-                        paramsMap.set(decodeURIComponent(pair), ''); // برای پارامترهای پرچم (بدون مقدار)
+                        paramsMap.set(decodeURIComponent(pair), ''); // Handle flag parameters
                     }
                 });
             }
@@ -156,11 +159,16 @@ class LinkParser {
                         wsOpts.headers.Host = paramsMap.get('host');
                     }
                     if (Object.keys(wsOpts).length > 0) {
-                        proxy['ws-opts'] = wsOpts; // به صورت شیء ذخیره می‌شود، app.js آن را به JSON تبدیل می‌کند
+                        proxy['ws-opts'] = wsOpts; 
                     }
                 } else if (['grpc', 'h2', 'http', 'tcp'].includes(networkType)) {
                     proxy.network = networkType;
                     // TODO: اگر نیاز است، grpc-opts یا http-opts را بر اساس پارامترهای خاص اضافه کنید.
+                    // MiHoMo برای VLESS با network: tcp نیازی به flow خاصی ندارد مگر اینکه explicitly xtls-rprx-vision باشد
+                    // اما برای network: grpc نیاز به grpc-opts دارد.
+                    if (networkType === 'grpc' && paramsMap.has('serviceName')) {
+                        proxy['grpc-opts'] = { 'grpc-service-name': paramsMap.get('serviceName') };
+                    }
                 }
             }
 
@@ -194,17 +202,29 @@ class LinkParser {
                         if (paramsMap.has('pbk')) realityOpts['public-key'] = paramsMap.get('pbk');
                         if (paramsMap.has('sid')) realityOpts['short-id'] = paramsMap.get('sid');
                         if (Object.keys(realityOpts).length > 0) {
-                            proxy['reality-opts'] = realityOpts; // به صورت شیء ذخیره می‌شود، app.js آن را به JSON تبدیل می‌کند
+                            proxy['reality-opts'] = realityOpts; 
+                        }
+                        // Reality implicitly sets client-fingerprint to chrome if not specified
+                        if (!proxy['client-fingerprint']) {
+                            proxy['client-fingerprint'] = 'chrome';
                         }
                     }
                 }
             }
             
-            // سایر پارامترها
+            // سایر پارامترها - اطمینان از نگاشت صحیح به فیلدهای MiHoMo
             if (paramsMap.has('flow')) proxy.flow = paramsMap.get('flow');
             if (paramsMap.has('packet-encoding')) proxy['packet-encoding'] = paramsMap.get('packet-encoding');
             if (paramsMap.has('ip-version')) proxy['ip-version'] = paramsMap.get('ip-version');
-            if (paramsMap.has('smux')) proxy.smux = paramsMap.get('smux').toLowerCase() === 'true';
+            // smux در MiHoMo یک شیء با enabled: true/false است، نه فقط یک boolean
+            if (paramsMap.has('smux')) {
+                proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' };
+            } else {
+                // اگر smux در لینک نباشد، MiHoMo به طور پیش‌فرض آن را غیرفعال در نظر می‌گیرد.
+                // اما اگر می‌خواهیم به صراحت آن را در پیکربندی قرار دهیم:
+                proxy.smux = { enabled: false };
+            }
+
 
             return proxy;
 

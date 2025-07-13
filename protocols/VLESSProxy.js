@@ -90,9 +90,9 @@ class VLESSProxy extends BaseProtocol {
             },
             {
                 id: "fingerprint",
-                label: "Fingerprint",
+                label: "Fingerprint (Server Cert)",
                 type: "text",
-                placeholder: "مثال: chrome",
+                placeholder: "مثال: xxxxxxxxxxxxxxxxxxxxxxxx",
                 required: false,
                 dependency: { field: "tls", value: true }
             },
@@ -128,7 +128,9 @@ class VLESSProxy extends BaseProtocol {
                 type: "checkbox",
                 default: false,
                 required: false,
-                dependency: { field: "network", value: "tcp" } // SMUX معمولاً برای TCP است
+                // smux در MiHoMo یک شیء با enabled: true/false است
+                // این فیلد در UI یک چک‌باکس است که به true/false نگاشت می‌شود
+                // سپس در generateMihomoProxyConfig به { enabled: boolean } تبدیل می‌شود
             },
             {
                 id: "udp",
@@ -136,6 +138,24 @@ class VLESSProxy extends BaseProtocol {
                 type: "checkbox",
                 default: true,
                 required: false
+            },
+            {
+                id: "ws-opts", // برای VLESS over WebSocket
+                label: "WebSocket Options (JSON)",
+                type: "textarea",
+                placeholder: 'مثال: {"path": "/your_path", "headers": {"Host": "your-host.com"}}',
+                default: "{}",
+                required: false,
+                dependency: { field: "network", value: "ws" }
+            },
+            {
+                id: "grpc-opts", // برای VLESS over gRPC
+                label: "gRPC Options (JSON)",
+                type: "textarea",
+                placeholder: 'مثال: {"grpc-service-name": "YourService"}',
+                default: "{}",
+                required: false,
+                dependency: { field: "network", value: "grpc" }
             }
         ];
     }
@@ -161,7 +181,9 @@ class VLESSProxy extends BaseProtocol {
                     "skip-cert-verify": false,
                     "reality-opts": "{}",
                     smux: false,
-                    udp: true
+                    udp: true,
+                    "ws-opts": "{}",
+                    "grpc-opts": "{}"
                 }
             },
             {
@@ -184,8 +206,8 @@ class VLESSProxy extends BaseProtocol {
                     "reality-opts": "{}",
                     smux: false,
                     udp: true,
-                    // WS specific fields
-                    "ws-opts": '{"path": "/your_path", "headers": {"Host": "your-server.com"}}'
+                    "ws-opts": '{"path": "/your_path", "headers": {"Host": "your-server.com"}}',
+                    "grpc-opts": "{}"
                 }
             },
             {
@@ -207,7 +229,9 @@ class VLESSProxy extends BaseProtocol {
                     "skip-cert-verify": false,
                     "reality-opts": '{"public-key": "YOUR_PUBLIC_KEY", "short-id": "YOUR_SHORT_ID"}',
                     smux: false,
-                    udp: true
+                    udp: true,
+                    "ws-opts": "{}",
+                    "grpc-opts": "{}"
                 }
             }
         ];
@@ -222,9 +246,10 @@ class VLESSProxy extends BaseProtocol {
             server: userConfig.server,
             port: parseInt(userConfig.port),
             uuid: userConfig.uuid,
-            udp: userConfig.udp
+            udp: userConfig.udp // UDP relay
         };
 
+        // Optional fields
         if (userConfig.flow) {
             mihomoConfig.flow = userConfig.flow;
         }
@@ -235,6 +260,7 @@ class VLESSProxy extends BaseProtocol {
             mihomoConfig.network = userConfig.network;
         }
 
+        // TLS related fields
         if (userConfig.tls) {
             mihomoConfig.tls = userConfig.tls;
             if (userConfig.servername) {
@@ -252,10 +278,10 @@ class VLESSProxy extends BaseProtocol {
                     console.warn(`ALPN JSON نامعتبر برای پروکسی ${proxyName}: ${userConfig.alpn}`, e);
                 }
             }
-            if (userConfig.fingerprint) {
+            if (userConfig.fingerprint) { // Server certificate fingerprint
                 mihomoConfig.fingerprint = userConfig.fingerprint;
             }
-            if (userConfig["client-fingerprint"]) {
+            if (userConfig["client-fingerprint"]) { // Client hello fingerprint
                 mihomoConfig["client-fingerprint"] = userConfig["client-fingerprint"];
             }
             if (userConfig["skip-cert-verify"]) {
@@ -275,7 +301,8 @@ class VLESSProxy extends BaseProtocol {
             }
         }
 
-        if (userConfig.network === 'ws' && userConfig['ws-opts']) {
+        // Network specific options
+        if (userConfig.network === 'ws' && userConfig['ws-opts'] && userConfig['ws-opts'] !== '{}') {
             try {
                 const parsedWsOpts = JSON.parse(userConfig['ws-opts']);
                 if (typeof parsedWsOpts === 'object' && parsedWsOpts !== null) {
@@ -287,11 +314,33 @@ class VLESSProxy extends BaseProtocol {
                 console.warn(`WS Options JSON نامعتبر برای پروکسی ${proxyName}: ${userConfig['ws-opts']}`, e);
             }
         }
+        if (userConfig.network === 'grpc' && userConfig['grpc-opts'] && userConfig['grpc-opts'] !== '{}') {
+            try {
+                const parsedGrpcOpts = JSON.parse(userConfig['grpc-opts']);
+                if (typeof parsedGrpcOpts === 'object' && parsedGrpcOpts !== null) {
+                    mihomoConfig['grpc-opts'] = parsedGrpcOpts;
+                } else {
+                    console.warn(`gRPC Options نامعتبر برای پروکسی ${proxyName}: ${userConfig['grpc-opts']}`);
+                }
+            } catch (e) {
+                console.warn(`gRPC Options JSON نامعتبر برای پروکسی ${proxyName}: ${userConfig['grpc-opts']}`, e);
+            }
+        }
         
+        // SMUX option (needs to be an object { enabled: boolean })
+        // userConfig.smux از UI به صورت boolean می‌آید
         if (userConfig.smux !== undefined) {
-            mihomoConfig.smux = userConfig.smux;
+            mihomoConfig.smux = { enabled: userConfig.smux };
+        } else {
+            // اگر smux در userConfig نباشد، به طور پیش‌فرض غیرفعال در نظر گرفته می‌شود
+            mihomoConfig.smux = { enabled: false };
         }
 
+        // IP Version
+        if (userConfig["ip-version"] && userConfig["ip-version"] !== "dual") {
+            mihomoConfig["ip-version"] = userConfig["ip-version"];
+        }
+        
         return mihomoConfig;
     }
 }
