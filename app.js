@@ -7,8 +7,8 @@ import MihomoConfigGenerator from './MihomoConfigGenerator.js';
 new Vue({
     el: '#app',
     data: {
-        currentTab: 'add-proxy',
-        protocols: [],
+        currentTab: 'add-proxy', // تب پیش‌فرض هنگام بارگذاری صفحه
+        protocols: [], // لیست نام پروتکل‌های موجود (مثل HTTP, SOCKS5)
         
         // --- تب افزودن پروکسی ---
         addProxyMethodTab: 'manual-entry', // 'manual-entry', 'file-upload', 'link-input'
@@ -45,13 +45,15 @@ new Vue({
         copySuccess: false,
     },
     mounted() {
-        this.fetchProtocols();
-        this.fetchSavedProxies(); // باید هنگام mount شدن همه رو fetch کنه
-        this.fetchMihomoTemplates();
-        this.allProtocolTypes = ProtocolManager.getAllProtocolNames();
+        // این متد وقتی کامپوننت Vue بارگذاری شد فراخوانی میشه
+        this.fetchProtocols(); // بارگذاری پروتکل‌ها از ProtocolManager
+        this.fetchSavedProxies(); // بارگذاری پروکسی‌های ذخیره شده از ConfigManager
+        this.fetchMihomoTemplates(); // بارگذاری تمپلت‌های Mihomo از MihomoConfigGenerator
+        this.allProtocolTypes = ProtocolManager.getAllProtocolNames(); // دریافت همه پروتکل‌ها برای فیلتر
         this.selectedOutputProtocols = [...this.allProtocolTypes]; // به طور پیش‌فرض همه را انتخاب کن
     },
     computed: {
+        // فیلتر کردن فیلدها بر اساس وابستگی
         filteredProtocolFields() {
             return this.currentProtocolFields.filter(field => {
                 if (field.dependency) {
@@ -63,6 +65,7 @@ new Vue({
         },
         // پروکسی‌های فیلتر شده بر اساس نوع پروتکل برای نمایش در تب "ساخت کانفیگ"
         filteredSavedProxiesForConfig() {
+            // این تابع اکنون فقط برای نمایش در UI استفاده می شود، نه برای فیلتر نهایی تولید کانفیگ
             return this.savedProxies.filter(proxy => 
                 this.selectedOutputProtocols.includes(proxy.protocol_name)
             );
@@ -95,6 +98,7 @@ new Vue({
                 if (protocolInstance) {
                     this.currentProtocolFields = protocolInstance.getConfigFields();
                     
+                    // مقداردهی اولیه newProxy با مقادیر پیش‌فرض فیلدها
                     this.currentProtocolFields.forEach(field => {
                         if (field.default !== undefined) {
                             this.$set(this.newProxy, field.id, field.default);
@@ -128,6 +132,8 @@ new Vue({
 
         // --- متدهای مربوط به افزودن پروکسی ---
         async addProxy() {
+            // این متد برای دکمه "افزودن پروکسی" در تب دستی استفاده می‌شود
+            // اعتبارسنجی ساده سمت فرانت‌اند
             for (const field of this.currentProtocolFields) {
                 if (field.required && (this.newProxy[field.id] === null || this.newProxy[field.id] === undefined || this.newProxy[field.id] === '')) {
                     this.showMessage(`فیلد '${field.label}' اجباری است.`, 'error');
@@ -136,7 +142,7 @@ new Vue({
             }
 
             const proxyToAdd = { ...this.newProxy, protocol_name: this.selectedProtocolName };
-            this.addProxyToSavedList(proxyToAdd);
+            this.addProxyToSavedList(proxyToAdd); // فراخوانی تابع مرکزی افزودن
         },
 
         handleFileUpload(event) {
@@ -163,6 +169,7 @@ new Vue({
             let decodedContent = content;
             this.detectedProxiesCount = 0; // ریست شمارنده
 
+            // 1. تشخیص و دیکد کردن Base64
             try {
                 if (Base64.isValid(content)) {
                     decodedContent = Base64.decode(content);
@@ -172,15 +179,16 @@ new Vue({
                 console.warn("محتوا Base64 معتبر نیست یا خطا در دیکدینگ:", e);
             }
             
-            let proxiesToAdd = [];
+            let proxiesFromInput = []; // نام تغییر کرده برای وضوح
             
+            // 2. تلاش برای parsing YAML/JSON
             try {
                 const parsedYaml = jsyaml.load(decodedContent);
                 if (parsedYaml && Array.isArray(parsedYaml.proxies)) {
-                    proxiesToAdd = parsedYaml.proxies;
+                    proxiesFromInput = parsedYaml.proxies;
                     this.showMessage(`پروکسی‌ها از فایل/متن YAML معتبر استخراج شدند.`, 'success');
                 } else if (parsedYaml && parsedYaml.type && parsedYaml.server && parsedYaml.port) {
-                    proxiesToAdd.push(parsedYaml);
+                    proxiesFromInput.push(parsedYaml);
                     this.showMessage(`یک پروکسی از فایل/متن YAML معتبر استخراج شد.`, 'success');
                 } else {
                     console.log("محتوای YAML/JSON معتبر نیست یا شامل لیست پروکسی‌ها نیست.");
@@ -189,24 +197,48 @@ new Vue({
                 console.log("محتوا YAML/JSON معتبر نیست. تلاش برای استخراج لینک‌ها...", e);
             }
 
-            if (proxiesToAdd.length === 0) {
+            // 3. تلاش برای استخراج از لینک‌های اشتراک (Vmess, Shadowsocks, ...)
+            if (proxiesFromInput.length === 0) { // اگر از YAML چیزی استخراج نشد
                 const lines = decodedContent.split('\n').map(line => line.trim()).filter(line => line.length > 0);
                 for (const line of lines) {
                     let proxy = null;
+                    // اینجا باید تمام پروتکل‌های پشتیبانی شده را بررسی کرد
+                    // و logic parsing خاص هر پروتکل را فراخوانی کرد
                     if (line.startsWith("socks5://")) {
                         proxy = this.parseSocks5Link(line);
                     } else if (line.startsWith("http://") || line.startsWith("https://")) {
                         proxy = this.parseHttpLink(line);
                     }
+                    // TODO: اینجا می توانید پروتکل های Vmess, SS, Trojan, ... را هم parse کنید
+                    // برای Vmess و SS و Trojan نیاز به logic parsing پیچیده تری است
+                    // به دلیل ساختار پیچیده لینک هایشان که شامل بسیاری از پارامترها و گاهی Base64 هستند.
+                    // مثال (بسیار ساده و غیر کامل):
+                    // if (line.startsWith("vmess://")) {
+                    //    try {
+                    //        const decoded = Base64.decode(line.substring(8));
+                    //        const vmessConfig = JSON.parse(decoded);
+                    //        proxy = { type: 'vmess', name: vmessConfig.ps || 'Vmess Proxy', server: vmessConfig.add, port: vmessConfig.port, ...vmessConfig };
+                    //    } catch (err) { console.warn('Invalid Vmess link:', err); }
+                    // }
+                    // if (line.startsWith("ss://")) {
+                    //    try {
+                    //        const part = line.substring(5);
+                    //        const [cipherPass, serverPort] = part.split('@');
+                    //        const [cipher, password] = Base64.decode(cipherPass).split(':');
+                    //        const [server, port] = serverPort.split(':');
+                    //        proxy = { type: 'shadowsocks', name: `SS-${server}:${port}`, server, port: parseInt(port), cipher, password };
+                    //    } catch (err) { console.warn('Invalid SS link:', err); }
+                    // }
+                    
                     if (proxy) {
-                        proxiesToAdd.push(proxy);
+                        proxiesFromInput.push(proxy);
                     } else {
                         console.warn(`خط/لینک ناشناخته/نامعتبر: ${line}`);
                     }
                 }
             }
 
-            this.detectedProxiesCount = proxiesToAdd.length;
+            this.detectedProxiesCount = proxiesFromInput.length;
 
             if (this.detectedProxiesCount === 0) {
                 this.showMessage('هیچ پروکسی معتبری از محتوای وارد شده یافت نشد. فرمت را بررسی کنید.', 'error');
@@ -214,44 +246,76 @@ new Vue({
             }
 
             let addedCount = 0;
-            for (const proxy of proxiesToAdd) {
+            let duplicateCount = 0; // شمارنده جدید برای موارد تکراری
+            for (const proxy of proxiesFromInput) {
                 if (!proxy.type) {
                     console.warn(`پروکسی بدون نوع (type) نادیده گرفته شد:`, proxy);
                     continue;
                 }
                 
-                const protocolInstance = ProtocolManager.getProtocolByName(proxy.type.toUpperCase());
+                const protocolInstance = ProtocolManager.getProtocolByName(proxy.type.toUpperCase()); // تبدیل 'socks5' به 'SOCKS5'
                 if (!protocolInstance) {
                     console.warn(`پروتکل '${proxy.type}' پشتیبانی نمی‌شود و پروکسی نادیده گرفته شد:`, proxy);
                     continue;
                 }
 
+                // ساخت آبجکت configData با استفاده از فیلدهای پروتکل
                 const configData = { protocol_name: protocolInstance.getName() };
                 const fields = protocolInstance.getConfigFields();
                 
                 fields.forEach(field => {
-                    if (proxy[field.id] !== undefined) {
-                        configData[field.id] = proxy[field.id];
+                    const mihomoKey = field.id; // اکثر IDهای فیلدها با کلیدهای Mihomo یکی هستند
+                    if (proxy[mihomoKey] !== undefined) {
+                        // تبدیل نوع برای boolean
+                        if (field.type === 'checkbox') {
+                            configData[field.id] = Boolean(proxy[mihomoKey]);
+                        } 
+                        // تبدیل نوع برای number
+                        else if (field.type === 'number') {
+                            configData[field.id] = parseInt(proxy[mihomoKey]);
+                        }
+                        // برای headers باید از JSON.stringify استفاده کنیم
+                        else if (field.id === 'headers' && typeof proxy[mihomoKey] === 'object') {
+                            configData[field.id] = JSON.stringify(proxy[mihomoKey]);
+                        }
+                        else {
+                            configData[field.id] = proxy[mihomoKey];
+                        }
                     } else if (field.default !== undefined) {
                         configData[field.id] = field.default;
                     }
                 });
-                
-                if (proxy.headers && typeof proxy.headers === 'object') {
-                    configData.headers = JSON.stringify(proxy.headers);
+
+                // تنظیم نام پیش فرض در صورت نبود
+                if (!configData.name) {
+                    configData.name = `Auto-Imported-${protocolInstance.getName()}-${configData.server}:${configData.port}`;
                 }
 
-                this.addProxyToSavedList(configData);
-                addedCount++;
+                // افزودن به لیست ذخیره شده (ConfigManager مسئول بررسی تکراری بودن است)
+                if (ConfigManager.addConfig(configData)) {
+                    addedCount++;
+                } else {
+                    duplicateCount++;
+                }
             }
 
+            this.loadSavedProxies(); // رفرش لیست بعد از افزودن
+            
+            let message = '';
             if (addedCount > 0) {
-                this.showMessage(`${addedCount} پروکسی با موفقیت اضافه شد.`, 'success');
-                this.fileContent = '';
-                this.linkInput = '';
-            } else {
-                this.showMessage('هیچ پروکسی معتبری برای افزودن یافت نشد.', 'error');
+                message += `${addedCount} پروکسی جدید با موفقیت اضافه شد. `;
             }
+            if (duplicateCount > 0) {
+                message += `${duplicateCount} پروکسی تکراری نادیده گرفته شد.`;
+            }
+            if (addedCount === 0 && duplicateCount === 0) {
+                message = 'هیچ پروکسی معتبری برای اضافه کردن یافت نشد.';
+                this.showMessage(message, 'error');
+            } else {
+                this.showMessage(message, 'success');
+            }
+            this.fileContent = '';
+            this.linkInput = '';
         },
 
         parseSocks5Link(link) {
@@ -266,13 +330,14 @@ new Vue({
                 if (url.password) proxy.password = decodeURIComponent(url.password);
 
                 const params = new URLSearchParams(url.search);
-                if (params.get('tls')) proxy.tls = params.get('tls').toLowerCase() === 'true';
-                if (params.get('skip-cert-verify')) proxy['skip-cert-verify'] = params.get('skip-cert-verify').toLowerCase() === 'true';
-                if (params.get('udp')) proxy.udp = params.get('udp').toLowerCase() === 'true';
-                if (params.get('ip-version')) proxy['ip-version'] = params.get('ip-version');
-                if (params.get('fingerprint')) proxy.fingerprint = params.get('fingerprint');
+                // پارامترهای URL همیشه رشته هستند، نیاز به تبدیل نوع دارند
+                if (params.has('tls')) proxy.tls = params.get('tls').toLowerCase() === 'true';
+                if (params.has('skip-cert-verify')) proxy['skip-cert-verify'] = params.get('skip-cert-verify').toLowerCase() === 'true';
+                if (params.has('udp')) proxy.udp = params.get('udp').toLowerCase() === 'true';
+                if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
+                if (params.has('fingerprint')) proxy.fingerprint = params.get('fingerprint');
 
-                proxy.name = proxy.name || `SOCKS5-${proxy.server}:${proxy.port}`;
+                proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `SOCKS5-${proxy.server}:${proxy.port}`;
                 return proxy;
             } catch (e) {
                 console.error("خطا در تجزیه لینک SOCKS5:", link, e);
@@ -294,19 +359,18 @@ new Vue({
                 proxy.tls = url.protocol === 'https:';
 
                 const params = new URLSearchParams(url.search);
-                if (params.get('skip-cert-verify')) proxy['skip-cert-verify'] = params.get('skip-cert-verify').toLowerCase() === 'true';
-                if (params.get('sni')) proxy.sni = params.get('sni');
-                if (params.get('fingerprint')) proxy.fingerprint = params.get('fingerprint');
-                if (params.get('ip-version')) proxy['ip-version'] = params.get('ip-version');
-                if (params.get('headers')) {
+                if (params.has('skip-cert-verify')) proxy['skip-cert-verify'] = params.get('skip-cert-verify').toLowerCase() === 'true';
+                if (params.has('sni')) proxy.sni = params.get('sni');
+                if (params.has('fingerprint')) proxy.fingerprint = params.get('fingerprint');
+                if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
+                if (params.has('headers')) {
                     try {
                         proxy.headers = JSON.parse(decodeURIComponent(params.get('headers')));
                     } catch (e) {
                         console.warn("هدرهای JSON در لینک نامعتبر است:", params.get('headers'));
                     }
                 }
-
-                proxy.name = proxy.name || `HTTP-${proxy.server}:${proxy.port}`;
+                proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `HTTP-${proxy.server}:${proxy.port}`;
                 return proxy;
             } catch (e) {
                 console.error("خطا در تجزیه لینک HTTP:", link, e);
@@ -314,31 +378,10 @@ new Vue({
             }
         },
 
-        addProxyToSavedList(proxyData) {
-            let finalName = proxyData.name;
-            let counter = 1;
-            while (this.savedProxies.some(p => p.name === finalName)) {
-                finalName = `${proxyData.name} ${counter}`;
-                counter++;
-            }
-            proxyData.name = finalName;
-
-            if (ConfigManager.addConfig(proxyData)) {
-                this.showMessage('پروکسی با موفقیت اضافه شد!', 'success');
-                this.fetchSavedProxies();
-                if (this.addProxyMethodTab === 'manual-entry') {
-                    this.resetAddProxyForm();
-                }
-            } else {
-                this.showMessage('خطا در افزودن پروکسی.', 'error');
-            }
-        },
-
-        // --- متدهای مربوط به مدیریت پروکسی‌ها (در تب "پروکسی‌های من") ---
+        // --- مدیریت پروکسی‌های ذخیره شده ---
         fetchSavedProxies() {
             this.savedProxies = ConfigManager.getAllConfigs();
         },
-        // حذف یک پروکسی (متد قبلی)
         deleteProxy(id) {
             if (!confirm('آیا مطمئن هستید که می‌خواهید این پروکسی را حذف کنید؟')) {
                 return;
@@ -491,6 +534,14 @@ new Vue({
         },
         clearAllProtocols() {
             this.selectedOutputProtocols = [];
+        },
+        resetAddProxyForm() {
+            this.selectedProtocolName = '';
+            this.currentProtocolFields = [];
+            this.proxyTemplates = [];
+            this.newProxy = {};
+            this.entryMethod = 'manual';
+            this.selectedTemplate = null;
         }
     },
     watch: {

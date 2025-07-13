@@ -1,9 +1,5 @@
 // MihomoConfigGenerator.js
 
-// چون نمی‌تونیم فایل‌های YAML رو مستقیماً از فایل‌سیستم مرورگر بخونیم،
-// محتوای تمپلت‌ها رو اینجا به صورت رشته (String) نگه می‌داریم.
-
-// تمپلت قوانین کامل (full_rules.yaml)
 const FULL_RULES_TEMPLATE_CONTENT = `
 global-client-fingerprint: chrome
 port: {{mihomo_port}}
@@ -457,7 +453,7 @@ proxy-groups:
     type: select
     icon: https://www.svgrepo.com/show/372331/cursor-hand-click.svg
     proxies:
-      {{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود
+{{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود (بدون خط تیره شروع)
   - name: "خودکار (بهترین پینگ) 🤖"
     type: url-test
     icon: https://www.svgrepo.com/show/7876/speedometer.svg
@@ -468,7 +464,7 @@ proxy-groups:
     max-failed-times: 6
     lazy: true
     proxies:
-      {{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود
+{{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود (بدون خط تیره شروع)
   - name: "پشتیبان (در صورت قطعی) 🧯"
     type: fallback
     icon: https://www.svgrepo.com/show/415208/backup-cloud-document.svg
@@ -478,7 +474,7 @@ proxy-groups:
     max-failed-times: 3
     lazy: true
     proxies:
-      {{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود
+{{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود (بدون خط تیره شروع)
   - name: دانلود منیجر 📥
     type: select
     icon: https://www.sadeemrdp.com/fonts/apps/IDM-Logo.svg
@@ -951,14 +947,14 @@ class MihomoConfigGenerator {
         let proxiesYamlString;
         if (generatedProxiesList.length > 0) {
             proxiesYamlString = jsyaml.dump(generatedProxiesList, { indent: 2, lineWidth: -1 });
-            // اضافه کردن ایندنت صحیح به هر خط برای بخش proxies (فقط برای خطوط غیر خالی)
+            // اضافه کردن ایندنت صحیح به هر خط برای بخش proxies
             // خطوطی که با - شروع می شوند، باید 2 فاصله قبل از - داشته باشند
-            // سایر خطوط باید 4 فاصله داشته باشند.
+            // سایر خطوط (که فیلدهای داخل آیتم‌های لیست هستند) باید 4 فاصله داشته باشند.
             proxiesYamlString = proxiesYamlString.split('\n').filter(line => line.trim() !== '').map(line => {
                 if (line.startsWith('-')) {
                     return `  ${line}`; // برای آیتم‌های لیست
                 }
-                return `  ${line}`; // برای فیلدهای داخل آیتم‌های لیست (که به صورت key: value هستند)
+                return `    ${line}`; // برای فیلدهای داخل آیتم‌های لیست (key: value)
             }).join('\n');
         } else {
             proxiesYamlString = '  []'; // لیست خالی پروکسی‌ها
@@ -974,6 +970,7 @@ class MihomoConfigGenerator {
         const proxyNamesFormattedForGroups = userProxies.map(p => `      - "${p.name}"`).join('\n');
         
         // اگر لیست پروکسی‌ها خالی باشد، فقط DIRECT را قرار می‌دهیم
+        // اگر تمپلت "no_rules" باشد و no_rules فقط DIRECT داشته باشد
         const finalProxyNamesListForGroups = userProxies.length > 0 ? proxyNamesFormattedForGroups : '      - DIRECT'; 
         
         // جایگزینی تمام occurrences از {{user_proxy_names_list}}

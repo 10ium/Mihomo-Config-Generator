@@ -16,6 +16,8 @@
     
     <script src="https://cdn.jsdelivr.net/npm/js-base64@3.7.5/base64.min.js"></script>
 
+    <script src="https://cdn.jsdelivr.net/npm/uuid@8.3.2/dist/umd/uuidv4.min.js"></script>
+
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-gray-100 font-vazirmatn text-right">
@@ -190,39 +192,32 @@
             <div v-if="currentTab === 'view-proxies'">
                 <h2 class="text-2xl font-bold text-gray-700 mb-4">پروکسی‌های ذخیره شده من</h2>
 
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2">
-                        انتخاب پروکسی‌ها برای ساخت کانفیگ:
-                        <p class="text-xs text-gray-500 mt-1">
-                            (می‌توانید چند پروکسی را انتخاب کنید)
-                        </p>
+                <div class="mb-4 flex flex-wrap gap-2 items-center">
+                    <label class="block text-gray-700 text-sm font-bold mb-0">
+                        انتخاب برای کانفیگ:
                     </label>
-                    <div class="flex flex-wrap items-center mb-2">
-                        <button @click="selectAllProxiesForMihomo" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-1 px-2 rounded ml-2 mb-1">
-                            انتخاب همه
-                        </button>
-                        <button @click="clearAllProxiesForMihomo" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-1 px-2 rounded ml-2 mb-1">
-                            لغو انتخاب همه
-                        </button>
-                    </div>
+                    <button @click="selectAllProxiesForMihomo" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-1 px-2 rounded">
+                        انتخاب همه
+                    </button>
+                    <button @click="clearAllProxiesForMihomo" class="bg-gray-200 hover:bg-gray-300 text-gray-800 text-xs py-1 px-2 rounded">
+                        لغو انتخاب همه
+                    </button>
                 </div>
 
-                <div class="mb-4">
-                    <label class="block text-gray-700 text-sm font-bold mb-2">
-                        انتخاب پروکسی‌ها برای حذف:
+                <div class="mb-4 flex flex-wrap gap-2 items-center">
+                    <label class="block text-gray-700 text-sm font-bold mb-0">
+                        انتخاب برای حذف:
                     </label>
-                    <div class="flex flex-wrap items-center mb-2">
-                        <button @click="selectAllProxiesForDeletion" class="bg-red-200 hover:bg-red-300 text-red-800 text-xs py-1 px-2 rounded ml-2 mb-1">
-                            انتخاب همه
-                        </button>
-                        <button @click="clearAllProxiesForDeletion" class="bg-red-200 hover:bg-red-300 text-red-800 text-xs py-1 px-2 rounded ml-2 mb-1">
-                            لغو انتخاب همه
-                        </button>
-                        <button @click="deleteSelectedProxies" class="bg-red-500 hover:bg-red-700 text-white text-xs py-1 px-2 rounded ml-2 mb-1"
-                                :disabled="!selectedProxiesForDeletion.length">
-                            <i class="fas fa-trash-alt ml-1"></i> حذف انتخاب شده‌ها
-                        </button>
-                    </div>
+                    <button @click="selectAllProxiesForDeletion" class="bg-red-200 hover:bg-red-300 text-red-800 text-xs py-1 px-2 rounded">
+                        انتخاب همه
+                    </button>
+                    <button @click="clearAllProxiesForDeletion" class="bg-red-200 hover:bg-red-300 text-red-800 text-xs py-1 px-2 rounded">
+                        لغو انتخاب همه
+                    </button>
+                    <button @click="deleteSelectedProxies" class="bg-red-500 hover:bg-red-700 text-white text-xs py-1 px-2 rounded"
+                            :disabled="!selectedProxiesForDeletion.length">
+                        <i class="fas fa-trash-alt ml-1"></i> حذف انتخاب شده‌ها
+                    </button>
                 </div>
 
                 <ul v-if="savedProxies.length" class="list-none p-0">
@@ -235,8 +230,8 @@
                         </div>
                         <div class="flex items-center mt-2 sm:mt-0 w-full sm:w-auto justify-end">
                             <input type="checkbox" :id="'delete-proxy-' + proxy.id" :value="proxy.id" v-model="selectedProxiesForDeletion" class="ml-2">
-                            <label :for="'delete-proxy-' + proxy.id" class="text-red-600 text-sm cursor-pointer ml-1">حذف</label>
-                            </div>
+                            <label :for="'delete-proxy-' + proxy.id" class="text-red-600 text-sm cursor-pointer ml-1">حذف این آیتم</label>
+                        </div>
                     </li>
                 </ul>
                 <p v-else class="text-gray-600">هنوز هیچ پروکسی‌ای ذخیره نشده است.</p>

@@ -1,22 +1,19 @@
 // ConfigManager.js
 
 class ConfigManager {
-    static _instance = null; // برای پیاده‌سازی Singleton Pattern
-    _storage_key = "user_proxies_configs"; // کلیدی که برای ذخیره در Local Storage استفاده می‌شود
-    _configs = []; // لیست کانفیگ‌های بارگذاری شده
+    static _instance = null;
+    _storage_key = "user_proxies_configs";
+    _configs = [];
 
     constructor() {
         if (ConfigManager._instance) {
-            return ConfigManager._instance; // اگر نمونه‌ای وجود دارد، همان را برگردان
+            return ConfigManager._instance;
         }
-        ConfigManager._instance = this; // در غیر این صورت، این نمونه را ذخیره کن
-        this._loadConfigs(); // بارگذاری کانفیگ‌ها در اولین ایجاد نمونه
+        ConfigManager._instance = this;
+        this._loadConfigs();
     }
 
     _loadConfigs() {
-        /**
-         * کانفیگ‌ها را از Local Storage مرورگر بارگذاری می‌کند.
-         */
         try {
             const storedConfigs = localStorage.getItem(this._storage_key);
             if (storedConfigs) {
@@ -33,9 +30,6 @@ class ConfigManager {
     }
 
     _saveConfigs() {
-        /**
-         * کانفیگ‌های فعلی را در Local Storage مرورگر ذخیره می‌کند.
-         */
         try {
             localStorage.setItem(this._storage_key, JSON.stringify(this._configs));
             console.log("کانفیگ‌ها در Local Storage با موفقیت ذخیره شدند.");
@@ -45,52 +39,44 @@ class ConfigManager {
     }
 
     addConfig(configData) {
-        /**
-         * یک کانفیگ جدید به لیست اضافه می‌کند و آن را ذخیره می‌کند.
-         * `configData` باید شامل 'protocol_name' و سایر جزئیات پروکسی باشد.
-         * @param {Object} configData - داده‌های کانفیگ پروکسی جدید.
-         * @returns {boolean} - true اگر با موفقیت اضافه شد، false در غیر این صورت.
-         */
-        if (!configData || !configData.protocol_name) {
-            console.error("خطا: داده کانفیگ نامعتبر است یا 'protocol_name' را ندارد.");
+        // حداقل فیلدهای مورد نیاز برای یک پروکسی معتبر
+        if (!configData || !configData.protocol_name || !configData.server || !configData.port) {
+            console.error("خطا: داده کانفیگ نامعتبر است یا اطلاعات ضروری (protocol_name, server, port) را ندارد.");
             return false;
         }
         
-        // یک شناسه منحصر به فرد (Unique ID) برای هر کانفیگ اضافه کنید
-        // بهتر است از یک UUID واقعی استفاده شود، اما فعلاً از یک timestamp ساده استفاده می‌کنیم.
-        configData.id = Date.now(); // یک ID بر اساس timestamp
+        // بررسی برای تکرار قبل از افزودن (بر اساس server, port, protocol_name)
+        const isDuplicate = this._configs.some(existingConfig => 
+            existingConfig.server === configData.server &&
+            existingConfig.port === configData.port &&
+            existingConfig.protocol_name === configData.protocol_name
+        );
+
+        if (isDuplicate) {
+            console.warn(`پروکسی تکراری (سرور: ${configData.server}, پورت: ${configData.port}, پروتکل: ${configData.protocol_name}) نادیده گرفته شد.`);
+            return false; // از افزودن تکراری جلوگیری کن
+        }
+
+        // استفاده از UUID واقعی برای ID منحصر به فرد
+        // uuidv4() از کتابخانه CDN که در index.html اضافه کرده اید می آید
+        configData.id = uuidv4(); 
         this._configs.push(configData);
         this._saveConfigs();
         return true;
     }
 
     getAllConfigs() {
-        /**
-         * لیستی از تمام کانفیگ‌های پروکسی ذخیره شده را برمی‌گرداند.
-         * @returns {Array<Object>}
-         */
         return this._configs;
     }
 
     getConfigById(configId) {
-        /**
-         * یک کانفیگ را بر اساس ID آن برمی‌گرداند.
-         * @param {number} configId - ID کانفیگ مورد نظر.
-         * @returns {Object | null} - شیء کانفیگ یا null اگر یافت نشد.
-         */
         return this._configs.find(config => config.id === configId) || null;
     }
 
     updateConfig(configId, newData) {
-        /**
-         * یک کانفیگ موجود را بر اساس ID آن به‌روزرسانی می‌کند.
-         * @param {number} configId - ID کانفیگ مورد نظر برای به‌روزرسانی.
-         * @param {Object} newData - داده‌های جدید برای به‌روزرسانی کانفیگ.
-         * @returns {boolean} - true اگر با موفقیت به‌روزرسانی شد، false در غیر این صورت.
-         */
         const index = this._configs.findIndex(config => config.id === configId);
         if (index !== -1) {
-            this._configs[index] = { ...this._configs[index], ...newData }; // ادغام داده‌های جدید
+            this._configs[index] = { ...this._configs[index], ...newData };
             this._saveConfigs();
             return true;
         }
@@ -99,11 +85,6 @@ class ConfigManager {
     }
 
     deleteConfig(configId) {
-        /**
-         * یک کانفیگ را بر اساس ID آن حذف می‌کند.
-         * @param {number} configId - ID کانفیگ مورد نظر برای حذف.
-         * @returns {boolean} - true اگر با موفقیت حذف شد، false در غیر این صورت.
-         */
         const initialLength = this._configs.length;
         this._configs = this._configs.filter(config => config.id !== configId);
         if (this._configs.length < initialLength) {
@@ -115,6 +96,5 @@ class ConfigManager {
     }
 }
 
-// برای اینکه بتوانیم فقط یک نمونه از ConfigManager داشته باشیم (Singleton)
 const configManagerInstance = new ConfigManager();
 export default configManagerInstance;
