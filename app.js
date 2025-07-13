@@ -53,7 +53,7 @@ new Vue({
         this.selectedOutputProtocols = [...this.allProtocolTypes]; // به طور پیش‌فرض همه را انتخاب کن
     },
     computed: {
-        // فیلتر کردن فیلدها بر اساس وابستگی
+        // فیلتر کردن فیلدها بر اساس وابندگی
         filteredProtocolFields() {
             return this.currentProtocolFields.filter(field => {
                 if (field.dependency) {
@@ -208,29 +208,14 @@ new Vue({
                         proxy = this.parseSocks5Link(line);
                     } else if (line.startsWith("http://") || line.startsWith("https://")) {
                         proxy = this.parseHttpLink(line);
-                    } else if (line.startsWith("vless://")) { // <-- اضافه شده برای VLESS
+                    } else if (line.startsWith("vless://")) {
                         proxy = this.parseVlessLink(line);
                     }
                     // TODO: اینجا می توانید پروتکل های Vmess, SS, Trojan, ... را هم parse کنید
                     // برای Vmess و SS و Trojan نیاز به logic parsing پیچیده تری است
                     // به دلیل ساختار پیچیده لینک هایشان که شامل بسیاری از پارامترها و گاهی Base64 هستند.
-                    // مثال (بسیار ساده و غیر کامل):
-                    // if (line.startsWith("vmess://")) {
-                    //    try {
-                    //        const decoded = Base64.decode(line.substring(8));
-                    //        const vmessConfig = JSON.parse(decoded);
-                    //        proxy = { type: 'vmess', name: vmessConfig.ps || 'Vmess Proxy', server: vmessConfig.add, port: vmessConfig.port, ...vmessConfig };
-                    //    } catch (err) { console.warn('Invalid Vmess link:', err); }
-                    // }
-                    // if (line.startsWith("ss://")) {
-                    //    try {
-                    //        const part = line.substring(5);
-                    //        const [cipherPass, serverPort] = part.split('@');
-                    //        const [cipher, password] = Base64.decode(cipherPass).split(':');
-                    //        const [server, port] = serverPort.split(':');
-                    //        proxy = { type: 'shadowsocks', name: `SS-${server}:${port}`, server, port: parseInt(port), cipher, password };
-                    //    } catch (err) { console.warn('Invalid SS link:', err); }
-                    // }
+                    // if (line.startsWith("vmess://")) { /* ... */ }
+                    // if (line.startsWith("ss://")) { /* ... */ }
                     
                     if (proxy) {
                         proxiesFromInput.push(proxy);
@@ -277,6 +262,7 @@ new Vue({
                             configData[field.id] = parseInt(proxy[mihomoKey]);
                         }
                         // برای headers, alpn, reality-opts, ws-opts باید از JSON.stringify استفاده کنیم
+                        // اگر مقدار از قبل یک آبجکت است، آن را به رشته JSON تبدیل می‌کنیم.
                         else if (['headers', 'alpn', 'reality-opts', 'ws-opts'].includes(field.id) && typeof proxy[mihomoKey] === 'object') {
                             configData[field.id] = JSON.stringify(proxy[mihomoKey]);
                         }
@@ -382,26 +368,21 @@ new Vue({
 
         parseVlessLink(link) {
             try {
-                // VLESS links are typically vless://<uuid>@<server>:<port>?<params>#<name>
-                // Or vless://<base64_encoded_json_config> (less common for share links, more for full configs)
-                // The provided example looks like a YAML proxy definition, not a share link.
-                // Assuming standard share link format: vless://<uuid>@<server>:<port>?<params>#<name>
-                
-                const parts = link.substring(8).split('@'); // Remove "vless://" and split by @
-                if (parts.length < 2) {
+                const linkParts = link.substring(8).split('#'); // Remove "vless://" and split by # for name
+                const rawLink = linkParts[0];
+                const name = linkParts.length > 1 ? decodeURIComponent(linkParts[1]) : `VLESS-Proxy`;
+
+                const atParts = rawLink.split('@');
+                if (atParts.length < 2) {
                     console.warn("Invalid VLESS link format (missing @):", link);
                     return null;
                 }
 
-                const uuid = parts[0];
-                const serverAndPortParams = parts[1].split('?');
+                const uuid = atParts[0];
+                const serverAndPortParams = atParts[1].split('?');
                 const serverPortPart = serverAndPortParams[0];
                 
-                const serverPortHash = serverPortPart.split('#');
-                const serverPort = serverPortHash[0];
-                const name = serverPortHash.length > 1 ? decodeURIComponent(serverPortHash[1]) : `VLESS-Proxy`;
-
-                const [server, portStr] = serverPort.split(':');
+                const [server, portStr] = serverPortPart.split(':');
                 const port = parseInt(portStr);
 
                 if (!server || isNaN(port)) {
@@ -411,69 +392,76 @@ new Vue({
 
                 const proxy = {
                     type: "vless",
-                    name: name,
+                    name: name, // Use extracted name
                     server: server,
                     port: port,
                     uuid: uuid,
-                    udp: true // Default for VLESS, can be overridden by params
+                    udp: true, // Default for VLESS, can be overridden by params
+                    tls: false, // Default to false, set to true if security=tls or reality
+                    network: "tcp" // Default network, can be overridden by 'type' param
                 };
 
                 if (serverAndPortParams.length > 1) {
-                    const paramsPart = serverAndPortParams[1];
-                    const params = new URLSearchParams(paramsPart);
+                    const params = new URLSearchParams(serverAndPortParams[1]);
 
                     if (params.has('flow')) proxy.flow = params.get('flow');
-                    if (params.has('encryption')) {
-                        // VLESS links often have encryption=none, but MiHoMo doesn't use it directly
-                        // We'll ignore it for now as it's typically implied by flow or network
-                    }
-                    if (params.has('type')) proxy.network = params.get('type'); // 'type' in VLESS link usually means network
-                    if (params.has('security') && params.get('security') === 'tls') {
-                        proxy.tls = true;
-                        if (params.has('sni')) proxy.servername = params.get('sni');
-                        if (params.has('fp')) proxy.fingerprint = params.get('fp'); // 'fp' for client-fingerprint
-                        if (params.has('allowInsecure')) proxy['skip-cert-verify'] = params.get('allowInsecure').toLowerCase() === 'true';
-                        if (params.has('pbk')) { // Reality public key
-                            if (!proxy['reality-opts']) proxy['reality-opts'] = {};
-                            proxy['reality-opts']['public-key'] = params.get('pbk');
-                        }
-                        if (params.has('sid')) { // Reality short ID
-                            if (!proxy['reality-opts']) proxy['reality-opts'] = {};
-                            proxy['reality-opts']['short-id'] = params.get('sid');
-                        }
-                        if (params.has('alpn')) {
-                            proxy.alpn = JSON.stringify(params.get('alpn').split(',')); // ALPN is comma-separated in URL
-                        }
-                    } else {
-                        proxy.tls = false;
-                    }
-
-                    // WebSocket options
-                    if (proxy.network === 'ws') {
-                        const wsOpts = {};
-                        if (params.has('path')) wsOpts.path = params.get('path');
-                        if (params.has('host')) { // 'host' in VLESS link maps to headers.Host in MiHoMo ws-opts
-                            if (!wsOpts.headers) wsOpts.headers = {};
-                            wsOpts.headers.Host = params.get('host');
-                        }
-                        if (Object.keys(wsOpts).length > 0) {
-                            proxy['ws-opts'] = JSON.stringify(wsOpts);
-                        }
-                    }
-                    
-                    // Other parameters that might map to MiHoMo fields
-                    if (params.has('smux')) proxy.smux = params.get('smux').toLowerCase() === 'true';
-                    if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
                     if (params.has('packet-encoding')) proxy['packet-encoding'] = params.get('packet-encoding');
+                    if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
+                    if (params.has('smux')) proxy.smux = params.get('smux').toLowerCase() === 'true';
 
+                    // Handle network/transport type
+                    if (params.has('type')) {
+                        const networkType = params.get('type');
+                        if (networkType === 'ws' || networkType === 'xhttp') {
+                            proxy.network = 'ws';
+                            const wsOpts = {};
+                            if (params.has('path')) wsOpts.path = params.get('path');
+                            if (params.has('host')) {
+                                if (!wsOpts.headers) wsOpts.headers = {};
+                                wsOpts.headers.Host = params.get('host');
+                            }
+                            if (Object.keys(wsOpts).length > 0) {
+                                proxy['ws-opts'] = wsOpts; // Keep as object, app.js will stringify
+                            }
+                        } else if (['grpc', 'h2', 'http', 'tcp'].includes(networkType)) {
+                            proxy.network = networkType;
+                            // Add grpc-opts or http-opts if needed, based on specific parameters
+                        }
+                    }
+
+                    // Handle TLS/Reality
+                    if (params.has('security')) {
+                        const securityType = params.get('security');
+                        if (securityType === 'tls' || securityType === 'reality') {
+                            proxy.tls = true;
+                            if (params.has('sni')) proxy.servername = params.get('sni');
+                            if (params.has('fp')) proxy.fingerprint = params.get('fp'); // 'fp' maps to MiHoMo fingerprint
+                            if (params.has('client-fingerprint')) proxy['client-fingerprint'] = params.get('client-fingerprint'); // explicit client-fingerprint
+                            if (params.has('alpn')) {
+                                try {
+                                    proxy.alpn = params.get('alpn').split(','); // Keep as array, app.js will stringify
+                                } catch (e) {
+                                    console.warn(`Invalid ALPN format in VLESS link: ${params.get('alpn')}`);
+                                }
+                            }
+                            if (params.has('allowInsecure') && params.get('allowInsecure').toLowerCase() === 'true') {
+                                proxy['skip-cert-verify'] = true;
+                            } else if (params.has('skip-cert-verify') && params.get('skip-cert-verify').toLowerCase() === 'true') {
+                                proxy['skip-cert-verify'] = true;
+                            }
+
+                            if (securityType === 'reality') {
+                                const realityOpts = {};
+                                if (params.has('pbk')) realityOpts['public-key'] = params.get('pbk');
+                                if (params.has('sid')) realityOpts['short-id'] = params.get('sid');
+                                if (Object.keys(realityOpts).length > 0) {
+                                    proxy['reality-opts'] = realityOpts; // Keep as object, app.js will stringify
+                                }
+                            }
+                        }
+                    }
                 }
                 
-                // Convert reality-opts to JSON string if it was built as an object
-                if (proxy['reality-opts'] && typeof proxy['reality-opts'] === 'object') {
-                    proxy['reality-opts'] = JSON.stringify(proxy['reality-opts']);
-                }
-
-
                 return proxy;
 
             } catch (e) {
