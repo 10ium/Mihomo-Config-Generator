@@ -1,53 +1,62 @@
 // protocols/BaseProtocol.js
 
+/**
+ * کلاس پایه برای تمام پروتکل‌های پروکسی.
+ * پروتکل‌های جدید باید از این کلاس ارث‌بری کنند و متدهای لازم را پیاده‌سازی کنند.
+ */
 class BaseProtocol {
-    constructor() {
-        if (new.target === BaseProtocol) {
-            throw new Error("BaseProtocol یک کلاس انتزاعی است و نمی‌توان از آن به صورت مستقیم نمونه‌سازی کرد.");
-        }
-    }
-
     /**
-     * نام پروتکل را برمی‌گرداند (مثلاً "SOCKS5", "HTTP").
+     * نام پروتکل را برمی‌گرداند (مثلاً "HTTP", "SOCKS5", "VLESS").
+     * این نام باید منحصر به فرد باشد و برای شناسایی پروتکل در سراسر برنامه استفاده می‌شود.
      * @returns {string}
      */
     getName() {
-        throw new Error("متد 'getName()' باید پیاده‌سازی شود.");
+        throw new Error("متد 'getName()' باید توسط کلاس پروتکل پیاده‌سازی شود.");
     }
 
     /**
-     * ساختار فیلدهای مورد نیاز برای ورود دستی جزئیات کانفیگ این پروتکل را برمی‌گرداند.
-     * @returns {Array<Object>} هر شیء شامل:
-     * - 'id': (string) شناسه منحصر به فرد فیلد (مثلاً 'server_address')
-     * - 'label': (string) نام قابل نمایش برای کاربر (مثلاً 'آدرس سرور')
-     * - 'type': (string) نوع ورودی (مثلاً 'text', 'number', 'password', 'boolean')
-     * - 'default': (any, اختیاری) مقدار پیش‌فرض
-     * - 'required': (boolean, اختیاری) آیا این فیلد الزامی است یا خیر
-     * - 'placeholder': (string, اختیاری) متن راهنما
+     * لیستی از فیلدهای پیکربندی مورد نیاز/اختیاری برای این پروتکل را برمی‌گرداند.
+     * این فیلدها برای ساخت رابط کاربری (UI) جهت ورود دستی پروکسی استفاده می‌شوند.
+     * هر شیء فیلد باید شامل:
+     * - id: (string) شناسه منحصر به فرد فیلد (معمولاً با کلید MiHoMo مطابقت دارد)
+     * - label: (string) برچسب قابل نمایش برای فیلد در UI
+     * - type: (string) نوع ورودی UI (مثلاً "text", "number", "checkbox", "select", "textarea")
+     * - default: (any, اختیاری) مقدار پیش‌فرض
+     * - required: (boolean, اختیاری) آیا این فیلد اجباری است؟ (پیش‌فرض: false)
+     * - placeholder: (string, اختیاری) متن placeholder برای فیلد ورودی
+     * - description: (string, اختیاری) توضیحات کوتاه برای فیلد
+     * - options: (Array<string>, فقط برای type="select") لیست گزینه‌های انتخاب
+     * - dependency: (Object, اختیاری) اگر فیلد وابسته به مقدار فیلد دیگری است.
+     * - field: (string) id فیلد وابسته
+     * - value: (any) مقداری که فیلد وابسته باید داشته باشد تا این فیلد نمایش داده شود.
+     * @returns {Array<Object>}
      */
     getConfigFields() {
-        throw new Error("متد 'getConfigFields()' باید پیاده‌سازی شود.");
+        throw new Error("متد 'getConfigFields()' باید توسط کلاس پروتکل پیاده‌سازی شود.");
     }
 
     /**
-     * لیستی از تمپلت‌های پروکسی پیش‌فرض برای این پروتکل را برمی‌گرداند.
-     * @returns {Array<Object>} هر تمپلت شامل:
-     * - 'name': (string) نام تمپلت (مثلاً 'SOCKS5 Standard')
-     * - 'description': (string) توضیحات کوتاه
-     * - 'values': (Object) دیکشنری‌ای از مقادیر پیش‌فرض برای فیلدها (با 'id' به عنوان کلید)
+     * لیستی از تمپلت‌های پیکربندی پیش‌فرض برای این پروتکل را برمی‌گرداند.
+     * این تمپلت‌ها به کاربران امکان می‌دهند تا به سرعت پیکربندی‌های رایج را بارگذاری کنند.
+     * هر تمپلت باید شامل:
+     * - name: (string) نام تمپلت
+     * - description: (string) توضیحات کوتاه تمپلت
+     * - values: (Object) شیئی که مقادیر پیش‌فرض فیلدهای پیکربندی را نگه می‌دارد.
+     * @returns {Array<Object>}
      */
     getDefaultProxyTemplates() {
-        throw new Error("متد 'getDefaultProxyTemplates()' باید پیاده‌سازی شود.");
+        return []; // پیش‌فرض: هیچ تمپلتی ندارد
     }
 
     /**
-     * کانفیگ بخش 'proxies' مربوط به Mihomo را بر اساس تنظیمات وارد شده توسط کاربر
-     * برای این پروتکل تولید می‌کند.
-     * @param {Object} userConfig شامل مقادیری است که کاربر در UI وارد کرده (کلیدها همان 'id' فیلدها هستند).
-     * @returns {Object} یک شیء JavaScript که ساختار کانفیگ Mihomo را دارد.
+     * یک شیء پیکربندی پروکسی را به فرمت MiHoMo تبدیل می‌کند.
+     * این متد مسئول نگاشت فیلدهای عمومی و خاص پروتکل به ساختار YAML مورد انتظار MiHoMo است.
+     * همچنین باید تبدیل نوع داده (مثلاً رشته به عدد/بولی/آرایه/شیء) را مدیریت کند.
+     * @param {Object} userConfig - شیء پیکربندی پروکسی که توسط کاربر وارد شده یا از لینک تجزیه شده است.
+     * @returns {Object} - شیء پیکربندی MiHoMo.
      */
     generateMihomoProxyConfig(userConfig) {
-        throw new Error("متد 'generateMihomoProxyConfig()' باید پیاده‌سازی شود.");
+        throw new Error("متد 'generateMihomoProxyConfig()' باید توسط کلاس پروتکل پیاده‌سازی شود.");
     }
 }
 

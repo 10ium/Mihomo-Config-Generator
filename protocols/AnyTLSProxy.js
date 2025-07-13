@@ -11,7 +11,7 @@ class AnyTLSProxy extends BaseProtocol {
         return [
             {
                 id: "name",
-                label: "نام پروکسی (دلخواه)",
+                label: "نام پروکسی (دلخواه)", // Proxy name (optional)
                 type: "text",
                 default: "AnyTLS Proxy",
                 required: false,
@@ -19,25 +19,25 @@ class AnyTLSProxy extends BaseProtocol {
             },
             {
                 id: "server",
-                label: "آدرس سرور",
+                label: "آدرس سرور", // Server address
                 type: "text",
                 placeholder: "مثال: anytls.example.com",
                 required: true
             },
             {
                 id: "port",
-                label: "پورت",
+                label: "پورت", // Port
                 type: "number",
                 placeholder: "مثال: 443",
                 required: true
             },
             {
                 id: "password",
-                label: "رمز عبور",
+                label: "رمز عبور", // Password
                 type: "text",
                 placeholder: "مثال: your_password",
                 required: true,
-                description: "رمز عبور برای احراز هویت AnyTLS"
+                description: "رمز عبور برای احراز هویت AnyTLS" // Authentication password
             },
             {
                 id: "client-fingerprint",
@@ -46,67 +46,67 @@ class AnyTLSProxy extends BaseProtocol {
                 options: ["", "chrome", "firefox", "safari", "ios", "android", "edge", "random"],
                 default: "chrome",
                 required: false,
-                description: "اثر انگشت TLS کلاینت برای پنهان‌سازی ترافیک"
+                description: "اثر انگشت TLS کلاینت برای پنهان‌سازی ترافیک" // Client TLS fingerprint for traffic obfuscation
             },
             {
                 id: "udp",
-                label: "فعال‌سازی UDP (UDP Relay)",
+                label: "فعال‌سازی UDP (UDP Relay)", // Enable UDP (UDP Relay)
                 type: "checkbox",
                 default: true,
                 required: false,
-                description: "فعال‌سازی ارسال ترافیک UDP از طریق پروکسی"
+                description: "فعال‌سازی ارسال ترافیک UDP از طریق پروکسی" // Enable UDP traffic relay through the proxy
             },
             {
                 id: "idle-session-check-interval",
-                label: "فاصله بررسی نشست‌های بیکار (ثانیه)",
+                label: "فاصله بررسی نشست‌های بیکار (ثانیه)", // Heartbeat Interval (ms)
                 type: "number",
                 default: 30,
                 required: false,
                 placeholder: "مثال: 30",
-                description: "زمان بین بررسی نشست‌های بیکار"
+                description: "زمان بین بررسی نشست‌های بیکار" // Time between checking idle sessions
             },
             {
                 id: "idle-session-timeout",
-                label: "مهلت نشست بیکار (ثانیه)",
+                label: "مهلت نشست بیکار (ثانیه)", // Idle Session Timeout (seconds)
                 type: "number",
                 default: 30,
                 required: false,
                 placeholder: "مثال: 30",
-                description: "بستن نشست‌های بیکار پس از این زمان"
+                description: "بستن نشست‌های بیکار پس از این زمان" // Close idle sessions after this time
             },
             {
                 id: "min-idle-session",
-                label: "حداقل نشست بیکار",
+                label: "حداقل نشست بیکار", // Minimum Idle Sessions
                 type: "number",
                 default: 0,
                 required: false,
                 placeholder: "مثال: 0",
-                description: "حداقل تعداد نشست‌های بیکار که باید باز بمانند"
+                description: "حداقل تعداد نشست‌های بیکار که باید باز بمانند" // Minimum number of idle sessions to keep open
             },
             {
                 id: "sni",
-                label: "Server Name (SNI)",
+                label: "Server Name (SNI)", // Server Name (SNI)
                 type: "text",
                 placeholder: "مثال: example.com",
                 required: false,
-                description: "نام دامنه برای SNI (اختیاری)"
+                description: "نام دامنه برای SNI (اختیاری)" // Domain name for SNI (optional)
             },
             {
                 id: "alpn",
-                label: "ALPN (JSON Array)",
+                label: "ALPN (آرایه JSON)", // ALPN (JSON Array)
                 type: "textarea",
                 placeholder: 'مثال: ["h2", "http/1.1"]',
                 default: ["h2", "http/1.1"], // Fixed: Changed default to actual array
                 required: false,
-                description: "لیست پروتکل‌های ALPN به صورت آرایه JSON"
+                description: "لیست پروتکل‌های ALPN به صورت آرایه JSON" // List of ALPN protocols as JSON array
             },
             {
                 id: "skip-cert-verify",
-                label: "نادیده گرفتن تأیید گواهی TLS",
+                label: "نادیده گرفتن تأیید گواهی TLS", // Skip TLS Certificate Verification
                 type: "checkbox",
                 default: true, // Based on provided example
                 required: false,
-                description: "نادیده گرفتن بررسی گواهی TLS سرور (توصیه نمی‌شود مگر در موارد خاص)"
+                description: "نادیده گرفتن بررسی گواهی TLS سرور (توصیه نمی‌شود مگر در موارد خاص)" // Skip TLS certificate verification (not recommended unless in specific cases)
             }
         ];
     }
@@ -177,7 +177,7 @@ class AnyTLSProxy extends BaseProtocol {
             }
         }
 
-        if (userConfig["skip-cert-verify"]) {
+        if (typeof userConfig["skip-cert-verify"] === 'boolean') {
             mihomoConfig["skip-cert-verify"] = userConfig["skip-cert-verify"];
         }
 

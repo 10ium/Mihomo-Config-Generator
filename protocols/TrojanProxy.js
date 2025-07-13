@@ -90,6 +90,24 @@ class TrojanProxy extends BaseProtocol {
                 description: "نادیده گرفتن بررسی گواهی TLS سرور (توصیه نمی‌شود)" // Skip TLS certificate verification (not recommended)
             },
             {
+                id: "reality-opts",
+                label: "Reality Options (JSON)", // Reality Options (JSON)
+                type: "textarea",
+                placeholder: 'مثال: {"public-key": "...", "short-id": "...", "support-x25519mlkem768": true}',
+                default: {}, // Default to empty
+                required: false,
+                description: "تنظیمات Reality برای پنهان‌سازی ترافیک" // Reality settings for traffic obfuscation
+            },
+            {
+                id: "ech-opts", // Added ECH Options
+                label: "ECH Options (JSON)", // ECH Options (JSON)
+                type: "textarea",
+                placeholder: 'مثال: {"enable": true, "config": "base64_encoded_config"}',
+                default: {},
+                required: false,
+                description: "تنظیمات ECH (Encrypted Client Hello)" // ECH (Encrypted Client Hello) settings
+            },
+            {
                 id: "ss-opts",
                 label: "Shadowsocks Obfuscation (JSON)", // Shadowsocks Obfuscation (JSON)
                 type: "textarea",
@@ -99,22 +117,13 @@ class TrojanProxy extends BaseProtocol {
                 description: "تنظیمات Shadowsocks AEAD Encryption برای Trojan-Go" // Shadowsocks AEAD Encryption settings for Trojan-Go
             },
             {
-                id: "reality-opts",
-                label: "Reality Options (JSON)", // Reality Options (JSON)
-                type: "textarea",
-                placeholder: 'مثال: {"public-key": "...", "short-id": "..."}',
-                default: {}, // Default to empty
-                required: false,
-                description: "تنظیمات Reality برای پنهان‌سازی ترافیک" // Reality settings for traffic obfuscation
-            },
-            {
                 id: "network",
                 label: "Network (لایه انتقال)", // Network (Transport Layer)
                 type: "select",
-                options: ["tcp", "ws", "grpc"], // Supports ws/grpc, default is tcp
+                options: ["tcp", "ws", "grpc", "http", "h2"], // Supports ws/grpc/http/h2, default is tcp
                 default: "tcp",
                 required: false,
-                description: "لایه انتقال (tcp/ws/grpc)" // Transport layer (tcp/ws/grpc)
+                description: "لایه انتقال (tcp/ws/grpc/http/h2)" // Transport layer (tcp/ws/grpc/http/h2)
             },
             {
                 id: "smux",
@@ -123,7 +132,168 @@ class TrojanProxy extends BaseProtocol {
                 default: false, // Default to false
                 required: false,
                 description: "فعال‌سازی Stream Multiplexing" // Enable Stream Multiplexing
-            }
+            },
+            {
+                id: "smux-protocol",
+                label: "SMUX Protocol", // SMUX Protocol
+                type: "select",
+                options: ["", "smux", "yamux", "h2mux"],
+                default: "h2mux", // Default MiHoMo behavior
+                required: false,
+                dependency: { field: "smux", value: true },
+                description: "پروتکل Multiplexing" // Multiplexing protocol
+            },
+            {
+                id: "smux-max-connections",
+                label: "SMUX Max Connections", // SMUX Max Connections
+                type: "number",
+                placeholder: "مثال: 4",
+                required: false,
+                dependency: { field: "smux", value: true },
+                description: "حداکثر تعداد اتصالات Multiplexing" // Maximum number of multiplexing connections
+            },
+            {
+                id: "smux-min-streams",
+                label: "SMUX Min Streams", // SMUX Min Streams
+                type: "number",
+                placeholder: "مثال: 4",
+                required: false,
+                dependency: { field: "smux", value: true },
+                description: "حداقل تعداد جریان‌های Multiplexing قبل از باز کردن اتصال جدید" // Minimum number of multiplexed streams before opening a new connection
+            },
+            {
+                id: "smux-max-streams",
+                label: "SMUX Max Streams", // SMUX Max Streams
+                type: "number",
+                placeholder: "مثال: 0",
+                required: false,
+                dependency: { field: "smux", value: true },
+                description: "حداکثر تعداد جریان‌های Multiplexing در یک اتصال" // Maximum number of multiplexed streams in a connection
+            },
+            {
+                id: "smux-statistic",
+                label: "SMUX Statistic", // SMUX Statistic
+                type: "checkbox",
+                default: false,
+                required: false,
+                dependency: { field: "smux", value: true },
+                description: "نمایش اتصال زیرین در پنل" // Controls whether the underlying connection is displayed in the panel
+            },
+            {
+                id: "smux-only-tcp",
+                label: "SMUX Only TCP", // SMUX Only TCP
+                type: "checkbox",
+                default: false,
+                required: false,
+                dependency: { field: "smux", value: true },
+                description: "فقط TCP مجاز است (SMUX بر UDP تأثیر نمی‌گذارد)" // Only TCP is allowed (smux setting will not affect UDP)
+            },
+            {
+                id: "smux-padding",
+                label: "SMUX Padding", // SMUX Padding
+                type: "checkbox",
+                default: true, // Default to true as per MiHoMo docs
+                required: false,
+                dependency: { field: "smux", value: true },
+                description: "فعال‌سازی Fill (Padding)" // Enable Fill
+            },
+            {
+                id: "smux-brutal-opts",
+                label: "SMUX Brutal Options (JSON)", // SMUX Brutal Options (JSON)
+                type: "textarea",
+                placeholder: 'مثال: {"enabled": true, "up": 50, "down": 100}',
+                default: {},
+                required: false,
+                dependency: { field: "smux", value: true },
+                description: "تنظیمات TCP Brutal (کنترل ازدحام)" // TCP Brutal Settings (congestion control)
+            },
+            // Transport specific options
+            {
+                id: "ws-opts", // For Trojan over WebSocket
+                label: "WebSocket Options (JSON)", // WebSocket Options (JSON)
+                type: "textarea",
+                placeholder: 'مثال: {"path": "/your_path", "headers": {"Host": "your-host.com"}, "max-early-data": 1024, "early-data-header-name": "X-Early-Data", "v2ray-http-upgrade": true, "v2ray-http-upgrade-fast-open": true}',
+                default: {},
+                required: false,
+                dependency: { field: "network", value: "ws" }
+            },
+            {
+                id: "grpc-opts", // For Trojan over gRPC
+                label: "gRPC Options (JSON)", // gRPC Options (JSON)
+                type: "textarea",
+                placeholder: 'مثال: {"grpc-service-name": "YourService"}',
+                default: {},
+                required: false,
+                dependency: { field: "network", value: "grpc" }
+            },
+            {
+                id: "http-opts", // For Trojan over HTTP
+                label: "HTTP Options (JSON)", // HTTP Options (JSON)
+                type: "textarea",
+                placeholder: 'مثال: {"method": "GET", "path": ["/"], "headers": {"Connection": ["keep-alive"]}}',
+                default: {},
+                required: false,
+                dependency: { field: "network", value: "http" }
+            },
+            {
+                id: "h2-opts", // For Trojan over HTTP/2
+                label: "HTTP/2 Options (JSON)", // HTTP/2 Options (JSON)
+                type: "textarea",
+                placeholder: 'مثال: {"host": ["example.com"], "path": "/"}',
+                default: {},
+                required: false,
+                dependency: { field: "network", value: "h2" }
+            },
+            // Common fields
+            {
+                id: "ip-version",
+                label: "IP Version",
+                type: "select",
+                options: ["", "dual", "ipv4", "ipv6", "ipv4-prefer", "ipv6-prefer"],
+                default: "dual",
+                required: false,
+                description: "نسخه IP برای اتصال" // IP version for connection
+            },
+            {
+                id: "interface-name",
+                label: "نام اینترفیس (اختیاری)", // Interface Name (optional)
+                type: "text",
+                placeholder: "مثال: eth0",
+                required: false,
+                description: "مشخص کردن اینترفیس برای اتصال" // Specify the interface to which the node is bound
+            },
+            {
+                id: "routing-mark",
+                label: "Routing Mark (اختیاری)", // Routing Mark (optional)
+                type: "number",
+                placeholder: "مثال: 1234",
+                required: false,
+                description: "تگ مسیریابی برای اتصال" // The routing tag added when the node initiates a connection
+            },
+            {
+                id: "tfo",
+                label: "TCP Fast Open (TFO)", // TCP Fast Open (TFO)
+                type: "checkbox",
+                default: false,
+                required: false,
+                description: "فعال‌سازی TCP Fast Open" // Enable TCP Fast Open
+            },
+            {
+                id: "mptcp",
+                label: "TCP Multi Path (MPTCP)", // TCP Multi Path (MPTCP)
+                type: "checkbox",
+                default: false,
+                required: false,
+                description: "فعال‌سازی TCP Multi Path" // Enable TCP Multi Path
+            },
+            {
+                id: "dialer-proxy",
+                label: "Dialer Proxy (اختیاری)", // Dialer Proxy (optional)
+                type: "text",
+                placeholder: "مثال: ss1",
+                required: false,
+                description: "شناسه پروکسی/گروه پروکسی برای ارسال ترافیک" // Specifies the current network connection established proxies through
+            },
         ];
     }
 
@@ -143,10 +313,29 @@ class TrojanProxy extends BaseProtocol {
                     "client-fingerprint": "random",
                     fingerprint: "",
                     "skip-cert-verify": true,
-                    "ss-opts": {"enabled": false},
                     "reality-opts": {},
+                    "ech-opts": {}, // Added
+                    "ss-opts": {"enabled": false},
                     network: "tcp",
-                    smux: false
+                    smux: false,
+                    "smux-protocol": "h2mux",
+                    "smux-max-connections": null,
+                    "smux-min-streams": null,
+                    "smux-max-streams": null,
+                    "smux-statistic": false,
+                    "smux-only-tcp": false,
+                    "smux-padding": true,
+                    "smux-brutal-opts": {},
+                    "ws-opts": {},
+                    "grpc-opts": {},
+                    "http-opts": {},
+                    "h2-opts": {},
+                    "ip-version": "dual",
+                    "interface-name": "",
+                    "routing-mark": null,
+                    tfo: false,
+                    mptcp: false,
+                    "dialer-proxy": ""
                 }
             },
             {
@@ -163,13 +352,29 @@ class TrojanProxy extends BaseProtocol {
                     "client-fingerprint": "chrome",
                     fingerprint: "",
                     "skip-cert-verify": false,
-                    "ss-opts": {"enabled": false},
                     "reality-opts": {},
+                    "ech-opts": {}, // Added
+                    "ss-opts": {"enabled": false},
                     network: "ws",
                     smux: false,
-                    // ws-opts are handled by MiHoMo automatically when network is ws
-                    // but if specific path/headers are needed, they would go here
-                    "ws-opts": {} // Placeholder for potential ws-opts
+                    "smux-protocol": "h2mux",
+                    "smux-max-connections": null,
+                    "smux-min-streams": null,
+                    "smux-max-streams": null,
+                    "smux-statistic": false,
+                    "smux-only-tcp": false,
+                    "smux-padding": true,
+                    "smux-brutal-opts": {},
+                    "ws-opts": {"path": "/your_path", "headers": {"Host": "your-server.com"}},
+                    "grpc-opts": {},
+                    "http-opts": {},
+                    "h2-opts": {},
+                    "ip-version": "dual",
+                    "interface-name": "",
+                    "routing-mark": null,
+                    tfo: false,
+                    mptcp: false,
+                    "dialer-proxy": ""
                 }
             },
             {
@@ -186,10 +391,29 @@ class TrojanProxy extends BaseProtocol {
                     "client-fingerprint": "chrome",
                     fingerprint: "",
                     "skip-cert-verify": false,
+                    "reality-opts": {"public-key": "YOUR_PUBLIC_KEY", "short-id": "YOUR_SHORT_ID", "support-x25519mlkem768": false}, // Added support-x25519mlkem768
+                    "ech-opts": {}, // Added
                     "ss-opts": {"enabled": false},
-                    "reality-opts": {"public-key": "YOUR_PUBLIC_KEY", "short-id": "YOUR_SHORT_ID"},
                     network: "tcp",
-                    smux: false
+                    smux: false,
+                    "smux-protocol": "h2mux",
+                    "smux-max-connections": null,
+                    "smux-min-streams": null,
+                    "smux-max-streams": null,
+                    "smux-statistic": false,
+                    "smux-only-tcp": false,
+                    "smux-padding": true,
+                    "smux-brutal-opts": {},
+                    "ws-opts": {},
+                    "grpc-opts": {},
+                    "http-opts": {},
+                    "h2-opts": {},
+                    "ip-version": "dual",
+                    "interface-name": "",
+                    "routing-mark": null,
+                    tfo: false,
+                    mptcp: false,
+                    "dialer-proxy": ""
                 }
             }
         ];
@@ -233,6 +457,34 @@ class TrojanProxy extends BaseProtocol {
             mihomoConfig["skip-cert-verify"] = userConfig["skip-cert-verify"];
         }
 
+        // Reality Options
+        if (userConfig["reality-opts"] && userConfig["reality-opts"] !== '{}') {
+            try {
+                const parsedRealityOpts = typeof userConfig["reality-opts"] === 'string' ? JSON.parse(userConfig["reality-opts"]) : userConfig["reality-opts"];
+                if (typeof parsedRealityOpts === 'object' && parsedRealityOpts !== null) {
+                    mihomoConfig["reality-opts"] = parsedRealityOpts;
+                } else {
+                    console.warn(`Reality Options نامعتبر برای پروکسی ${proxyName}: ${userConfig["reality-opts"]}`);
+                }
+            } catch (e) {
+                console.warn(`Reality Options JSON نامعتبر برای پروکسی ${proxyName}: ${userConfig["reality-opts"]}`, e);
+            }
+        }
+
+        // ECH Options (Added)
+        if (userConfig["ech-opts"] && userConfig["ech-opts"] !== '{}') {
+            try {
+                const parsedEchOpts = typeof userConfig["ech-opts"] === 'string' ? JSON.parse(userConfig["ech-opts"]) : userConfig["ech-opts"];
+                if (typeof parsedEchOpts === 'object' && parsedEchOpts !== null) {
+                    mihomoConfig["ech-opts"] = parsedEchOpts;
+                } else {
+                    console.warn(`ECH Options نامعتبر برای پروکسی ${proxyName}: ${userConfig["ech-opts"]}`);
+                }
+            } catch (e) {
+                console.warn(`ECH Options JSON نامعتبر برای پروکسی ${proxyName}: ${userConfig["ech-opts"]}`, e);
+            }
+        }
+
         // SS Obfuscation options
         if (userConfig["ss-opts"] && userConfig["ss-opts"] !== '{}') {
             try {
@@ -249,28 +501,114 @@ class TrojanProxy extends BaseProtocol {
             }
         }
 
-        // Reality Options
-        if (userConfig["reality-opts"] && userConfig["reality-opts"] !== '{}') {
-            try {
-                const parsedRealityOpts = typeof userConfig["reality-opts"] === 'string' ? JSON.parse(userConfig["reality-opts"]) : userConfig["reality-opts"];
-                if (typeof parsedRealityOpts === 'object' && parsedRealityOpts !== null) {
-                    mihomoConfig["reality-opts"] = parsedRealityOpts;
+        // Network (Transport Layer) and its specific options
+        if (userConfig.network) {
+            mihomoConfig.network = userConfig.network;
+            if (userConfig.network === 'ws' && userConfig['ws-opts'] && userConfig['ws-opts'] !== '{}') {
+                try {
+                    const parsedWsOpts = typeof userConfig['ws-opts'] === 'string' ? JSON.parse(userConfig['ws-opts']) : userConfig['ws-opts'];
+                    if (typeof parsedWsOpts === 'object' && parsedWsOpts !== null) {
+                        mihomoConfig['ws-opts'] = parsedWsOpts;
+                    }
+                } catch (e) {
+                    console.warn(`WS Options JSON نامعتبر برای پروکسی ${proxyName}: ${userConfig['ws-opts']}`, e);
                 }
-            } catch (e) {
-                console.warn(`Reality Options JSON نامعتبر برای پروکسی ${proxyName}: ${userConfig["reality-opts"]}`, e);
+            }
+            if (userConfig.network === 'grpc' && userConfig['grpc-opts'] && userConfig['grpc-opts'] !== '{}') {
+                try {
+                    const parsedGrpcOpts = typeof userConfig['grpc-opts'] === 'string' ? JSON.parse(userConfig['grpc-opts']) : userConfig['grpc-opts'];
+                    if (typeof parsedGrpcOpts === 'object' && parsedGrpcOpts !== null) {
+                        mihomoConfig['grpc-opts'] = parsedGrpcOpts;
+                    }
+                } catch (e) {
+                    console.warn(`gRPC Options JSON نامعتبر برای پروکسی ${proxyName}: ${userConfig['grpc-opts']}`, e);
+                }
+            }
+            if (userConfig.network === 'http' && userConfig['http-opts'] && userConfig['http-opts'] !== '{}') {
+                try {
+                    const parsedHttpOpts = typeof userConfig['http-opts'] === 'string' ? JSON.parse(userConfig['http-opts']) : userConfig['http-opts'];
+                    if (typeof parsedHttpOpts === 'object' && parsedHttpOpts !== null) {
+                        mihomoConfig['http-opts'] = parsedHttpOpts;
+                    }
+                } catch (e) {
+                    console.warn(`HTTP Options نامعتبر برای پروکسی ${proxyName}: ${userConfig['http-opts']}`, e);
+                }
+            }
+            if (userConfig.network === 'h2' && userConfig['h2-opts'] && userConfig['h2-opts'] !== '{}') {
+                try {
+                    const parsedH2Opts = typeof userConfig['h2-opts'] === 'string' ? JSON.parse(userConfig['h2-opts']) : userConfig['h2-opts'];
+                    if (typeof parsedH2Opts === 'object' && parsedH2Opts !== null) {
+                        mihomoConfig['h2-opts'] = parsedH2Opts;
+                    }
+                } catch (e) {
+                    console.warn(`H2 Options نامعتبر برای پروکسی ${proxyName}: ${userConfig['h2-opts']}`, e);
+                }
             }
         }
 
-        // Network (Transport Layer)
-        if (userConfig.network) {
-            mihomoConfig.network = userConfig.network;
+        // SMUX option (needs to be an object { enabled: boolean })
+        if (userConfig.smux !== undefined && userConfig.smux !== null) {
+            let parsedSmux = userConfig.smux;
+            if (typeof userConfig.smux === 'string') {
+                try {
+                    parsedSmux = JSON.parse(userConfig.smux);
+                } catch (e) {
+                    console.warn(`SMUX JSON نامعتبر برای پروکسی ${proxyName}: ${userConfig.smux}`, e);
+                    parsedSmux = { enabled: Boolean(userConfig.smux) };
+                }
+            }
+            if (typeof parsedSmux === 'object' && parsedSmux !== null && typeof parsedSmux.enabled === 'boolean') {
+                mihomoConfig.smux = parsedSmux;
+            } else {
+                mihomoConfig.smux = { enabled: Boolean(parsedSmux) };
+            }
+
+            // Add other SMUX sub-fields if smux is enabled
+            if (mihomoConfig.smux.enabled) {
+                if (userConfig["smux-protocol"]) mihomoConfig.smux.protocol = userConfig["smux-protocol"];
+                if (userConfig["smux-max-connections"]) mihomoConfig.smux["max-connections"] = parseInt(userConfig["smux-max-connections"]);
+                if (userConfig["smux-min-streams"]) mihomoConfig.smux["min-streams"] = parseInt(userConfig["smux-min-streams"]);
+                if (userConfig["smux-max-streams"]) mihomoConfig.smux["max-streams"] = parseInt(userConfig["smux-max-streams"]);
+                if (typeof userConfig["smux-statistic"] === 'boolean') mihomoConfig.smux.statistic = userConfig["smux-statistic"];
+                if (typeof userConfig["smux-only-tcp"] === 'boolean') mihomoConfig.smux["only-tcp"] = userConfig["smux-only-tcp"];
+                if (typeof userConfig["smux-padding"] === 'boolean') mihomoConfig.smux.padding = userConfig["smux-padding"];
+
+                // Brutal options for SMUX
+                if (userConfig["smux-brutal-opts"] && userConfig["smux-brutal-opts"] !== '{}') {
+                    try {
+                        const parsedBrutalOpts = typeof userConfig["smux-brutal-opts"] === 'string' ? JSON.parse(userConfig["smux-brutal-opts"]) : userConfig["smux-brutal-opts"];
+                        if (typeof parsedBrutalOpts === 'object' && parsedBrutalOpts !== null) {
+                            mihomoConfig.smux["brutal-opts"] = parsedBrutalOpts;
+                        } else {
+                            console.warn(`SMUX Brutal Options نامعتبر برای پروکسی ${proxyName}: ${userConfig["smux-brutal-opts"]}`);
+                        }
+                    } catch (e) {
+                        console.warn(`SMUX Brutal Options JSON نامعتبر برای پروکسی ${proxyName}: ${userConfig["smux-brutal-opts"]}`, e);
+                    }
+                }
+            }
+        } else {
+            mihomoConfig.smux = { enabled: false };
         }
 
-        // SMUX option (needs to be an object { enabled: boolean })
-        if (typeof userConfig.smux === 'object' && userConfig.smux !== null && typeof userConfig.smux.enabled === 'boolean') {
-            mihomoConfig.smux = userConfig.smux;
-        } else {
-            mihomoConfig.smux = { enabled: Boolean(userConfig.smux) };
+        // Common fields
+        if (userConfig["ip-version"]) {
+            mihomoConfig["ip-version"] = userConfig["ip-version"];
+        }
+        if (userConfig["interface-name"]) {
+            mihomoConfig["interface-name"] = userConfig["interface-name"];
+        }
+        if (userConfig["routing-mark"]) {
+            mihomoConfig["routing-mark"] = parseInt(userConfig["routing-mark"]);
+        }
+        if (typeof userConfig.tfo === 'boolean') {
+            mihomoConfig.tfo = userConfig.tfo;
+        }
+        if (typeof userConfig.mptcp === 'boolean') {
+            mihomoConfig.mptcp = userConfig.mptcp;
+        }
+        if (userConfig["dialer-proxy"]) {
+            mihomoConfig["dialer-proxy"] = userConfig["dialer-proxy"];
         }
 
         return mihomoConfig;

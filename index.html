@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>سازنده کانفیگ MiHoMo</title>
-    <!-- Favicon اضافه شده -->
-    <link rel="icon" type="image/png" href="https://www.svgrepo.com/show/499648/gear.svg">
+    <!-- Favicon اضافه شده: نماد قفل باز شده برای آزادی -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='11' width='18' height='11' rx='2' ry='2'%3E%3C/rect%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'%3E%3C/path%3E%3C/svg%3E">
     
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     
@@ -64,7 +64,10 @@
                         <i class="fas fa-file-upload ml-2"></i>آپلود فایل
                     </button>
                     <button @click="addProxyMethodTab = 'link-input'" :class="{'tab-active': addProxyMethodTab === 'link-input'}" class="tab-button text-base">
-                        <i class="fas fa-link ml-2"></i>لینک / متن
+                        <i class="fas fa-link ml-2"></i>از لینک
+                    </button>
+                    <button @click="addProxyMethodTab = 'clipboard-paste'" :class="{'tab-active': addProxyMethodTab === 'clipboard-paste'}" class="tab-button text-base">
+                        <i class="fas fa-paste ml-2"></i>از کلیپ‌بورد
                     </button>
                 </div>
 
@@ -174,10 +177,32 @@
                         </label>
                         <textarea id="link-textarea" v-model="linkInput" rows="8"
                             class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                            placeholder="مثال:&#10;socks5://user:pass@server:port&#10;http://server2:port2&#10;vmess://eyJh...&#10;متن بیس64 شده..."></textarea>
+                            placeholder="مثال:&#10;socks5://user:pass@server:port&#10;http://server2:port2&#10;vmess://eyJh...&#10;متن بیس64 شده...&#10;یا لینک GitHub: https://github.com/user/repo/blob/main/config.yaml"></textarea>
                     </div>
-                    <button @click="addProxiesFromLinkOrText" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
-                        <i class="fas fa-plus ml-2"></i>افزودن پروکسی‌ها
+                    <button @click="fetchProxiesFromLink" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                        <i class="fas fa-cloud-download-alt ml-2"></i>دریافت و افزودن پروکسی‌ها
+                    </button>
+                    <p class="text-gray-600 text-sm mt-2 mb-2">
+                        برنامه به صورت خودکار فرمت متن/لینک را تشخیص داده و پروکسی‌ها را استخراج می‌کند.
+                    </p>
+                    <p v-if="detectedProxiesCount > 0" class="text-green-700 text-sm">
+                        <i class="fas fa-check-circle ml-1"></i>
+                        {{ detectedProxiesCount }} پروکسی شناسایی شد.
+                    </p>
+                </div>
+
+                <div v-if="addProxyMethodTab === 'clipboard-paste'">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">چسباندن از کلیپ‌بورد</h3>
+                    <div class="mb-4">
+                        <label for="clipboard-textarea" class="block text-gray-700 text-sm font-bold mb-2">
+                            محتوای کلیپ‌بورد (لینک‌های پروکسی، YAML، JSON یا Base64) را در کادر زیر بچسبانید:
+                        </label>
+                        <textarea id="clipboard-textarea" v-model="clipboardContent" rows="8"
+                            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                            placeholder="محتوای کلیپ‌بورد شما اینجا ظاهر می‌شود..."></textarea>
+                    </div>
+                    <button @click="handlePasteFromClipboard" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                        <i class="fas fa-paste ml-2"></i>چسباندن و افزودن پروکسی‌ها
                     </button>
                     <p class="text-gray-600 text-sm mt-2 mb-2">
                         برنامه به صورت خودکار فرمت متن/لینک را تشخیص داده و پروکسی‌ها را استخراج می‌کند.
@@ -268,13 +293,16 @@
                             پاک کردن همه
                         </button>
                     </div>
-                    <div class="max-h-24 overflow-y-auto border rounded p-2 bg-gray-50">
-                        <div v-for="type in allProtocolTypes" :key="type" class="flex items-center mb-1">
+                    <div class="max-h-32 overflow-y-auto border rounded p-2 bg-gray-50">
+                        <div v-for="type in protocolsWithSavedProxies" :key="type" class="flex items-center mb-1">
                             <input type="checkbox" :id="'protocol-type-' + type" :value="type" v-model="selectedOutputProtocols" class="ml-2">
                             <label :for="'protocol-type-' + type" class="text-gray-700 text-sm">
-                                {{ type }}
+                                {{ type }} ({{ protocolCounts[type] || 0 }})
                             </label>
                         </div>
+                        <p v-if="protocolsWithSavedProxies.length === 0" class="text-gray-600">
+                            هیچ پروکسی برای تولید کانفیگ یافت نشد.
+                        </p>
                     </div>
                 </div>
 

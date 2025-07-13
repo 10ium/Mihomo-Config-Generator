@@ -12,7 +12,7 @@ new Vue({
         protocols: [], // لیست نام پروتکل‌های موجود (مثل HTTP, SOCKS5)
         
         // --- تب افزودن پروکسی ---
-        addProxyMethodTab: 'manual-entry', // 'manual-entry', 'file-upload', 'link-input'
+        addProxyMethodTab: 'manual-entry', // 'manual-entry', 'file-upload', 'link-input', 'clipboard-paste'
         selectedProtocolName: '',
         currentProtocolFields: [],
         proxyTemplates: [],
@@ -20,8 +20,9 @@ new Vue({
         newProxy: {}, // مدل برای فرم افزودن پروکسی جدید (دستی)
         
         fileContent: '', // محتوای فایل آپلود شده
-        linkInput: '', // متن یا لینک وارد شده
-        detectedProxiesCount: 0, // تعداد پروکسی‌های شناسایی شده از فایل/لینک
+        linkInput: '', // متن یا لینک وارد شده (برای ورودی دستی و لینک)
+        clipboardContent: '', // محتوای کلیپ‌بورد
+        detectedProxiesCount: 0, // تعداد پروکسی‌های شناسایی شده از فایل/لینک/کلیپ‌بورد
         
         // --- تب پروکسی‌های من ---
         savedProxies: [],
@@ -37,6 +38,7 @@ new Vue({
         maxProxiesOutput: null, // حداکثر تعداد پروکسی در خروجی (null برای نامحدود)
         selectedOutputProtocols: [], // پروتکل‌های انتخاب شده برای خروجی نهایی
         allProtocolTypes: [], // لیست تمام نام پروتکل‌ها برای نمایش در فیلتر
+        protocolCounts: {}, // تعداد پروکسی‌ها برای هر پروتکل (مثال: { "VLESS": 10, "SS": 5 })
         
         generatedConfigContent: '',
         
@@ -70,6 +72,10 @@ new Vue({
             return this.savedProxies.filter(proxy => 
                 this.selectedOutputProtocols.includes(proxy.protocol_name)
             );
+        },
+        // پروتکل‌هایی که حداقل یک پروکسی ذخیره شده دارند
+        protocolsWithSavedProxies() {
+            return this.allProtocolTypes.filter(pName => this.protocolCounts[pName] > 0);
         }
     },
     methods: {
@@ -179,8 +185,52 @@ new Vue({
             reader.readAsText(file);
         },
 
-        addProxiesFromLinkOrText() {
-            this.parseAndAddProxies(this.linkInput, "Link/Text");
+        async fetchProxiesFromLink() {
+            if (!this.linkInput) {
+                this.showMessage('لطفاً یک لینک یا متن وارد کنید.', 'error');
+                return;
+            }
+
+            let contentToParse = this.linkInput;
+
+            // Try to convert GitHub URL to raw URL
+            if (this.linkInput.includes('github.com') && !this.linkInput.includes('raw.githubusercontent.com')) {
+                const rawUrl = LinkParser.getGitHubRawUrl(this.linkInput);
+                if (rawUrl) {
+                    contentToParse = rawUrl;
+                    this.showMessage('لینک GitHub به فرمت raw تبدیل شد. در حال دریافت محتوا...', 'info');
+                }
+            }
+
+            // Fetch content if it's a URL
+            if (contentToParse.startsWith('http://') || contentToParse.startsWith('https://')) {
+                try {
+                    const response = await fetch(contentToParse);
+                    if (!response.ok) {
+                        throw new Error(`خطا در دریافت لینک: ${response.statusText}`);
+                    }
+                    const text = await response.text();
+                    this.parseAndAddProxies(text, "Link");
+                } catch (e) {
+                    this.showMessage(`خطا در دریافت محتوا از لینک: ${e.message}`, 'error');
+                    console.error('Fetch error:', e);
+                }
+            } else {
+                // If not a URL, treat as direct text input
+                this.parseAndAddProxies(contentToParse, "Text Input");
+            }
+        },
+
+        handlePasteFromClipboard() {
+            navigator.clipboard.readText()
+                .then(text => {
+                    this.clipboardContent = text;
+                    this.parseAndAddProxies(this.clipboardContent, "Clipboard");
+                })
+                .catch(err => {
+                    this.showMessage('خطا در خواندن از کلیپ‌بورد. لطفاً دسترسی کلیپ‌بورد را تأیید کنید.', 'error');
+                    console.error('Failed to read clipboard contents: ', err);
+                });
         },
 
         parseAndAddProxies(content, sourceName = "Unknown Source") {
@@ -266,9 +316,9 @@ new Vue({
                         else if (field.type === 'number') {
                             configData[field.id] = parseInt(proxy[mihomoKey]);
                         }
-                        // برای headers, alpn, reality-opts, ws-opts, grpc-opts, smux باید از JSON.stringify استفاده کنیم
+                        // برای headers, alpn, reality-opts, ws-opts, grpc-opts, smux, ech-opts, brutal-opts باید از JSON.stringify استفاده کنیم
                         // اگر مقدار از قبل یک آبجکت است، آن را به رشته JSON تبدیل می‌کنیم.
-                        else if (['headers', 'alpn', 'reality-opts', 'ws-opts', 'grpc-opts', 'smux'].includes(field.id) && typeof proxy[mihomoKey] === 'object') {
+                        else if (['headers', 'alpn', 'reality-opts', 'ws-opts', 'grpc-opts', 'smux', 'ech-opts', 'brutal-opts', 'h2-opts', 'http-opts', 'plugin-opts', 'amnezia-wg-option', 'peers', 'allowed-ips', 'reserved', 'dns', 'host-key', 'host-key-algorithms', 'ss-opts', 'obfs-opts'].includes(field.id) && typeof proxy[mihomoKey] === 'object') {
                             configData[field.id] = JSON.stringify(proxy[mihomoKey]);
                         }
                         else {
@@ -317,16 +367,27 @@ new Vue({
             }
             this.fileContent = '';
             this.linkInput = '';
+            this.clipboardContent = ''; // Clear clipboard content after parsing
         },
-
-        // متدهای parseSocks5Link, parseHttpLink, parseVlessLink از اینجا حذف شده‌اند
-        // و به LinkParser.js منتقل شده‌اند.
 
         // --- مدیریت پروکسی‌های ذخیره شده ---
         fetchSavedProxies() {
             this.savedProxies = ConfigManager.getAllConfigs();
+            // محاسبه تعداد پروکسی‌ها بر اساس پروتکل
+            this.protocolCounts = {};
+            this.allProtocolTypes.forEach(pName => {
+                this.protocolCounts[pName] = 0;
+            });
+            this.savedProxies.forEach(proxy => {
+                if (this.protocolCounts[proxy.protocol_name] !== undefined) {
+                    this.protocolCounts[proxy.protocol_name]++;
+                }
+            });
+
             // انتخاب همه پروکسی‌ها به صورت پیش‌فرض هنگام بارگذاری
             this.selectedMihomoProxyIds = this.savedProxies.map(proxy => proxy.id);
+            // فیلتر کردن selectedOutputProtocols برای نمایش فقط پروتکل‌هایی که پروکسی دارند
+            this.selectedOutputProtocols = this.allProtocolTypes.filter(pName => this.protocolCounts[pName] > 0);
         },
         deleteProxy(id) {
             // استفاده از یک modal سفارشی به جای confirm()
@@ -548,12 +609,14 @@ new Vue({
                 }
                 this.generatedConfigContent = '';
                 this.maxProxiesOutput = null;
-                this.selectedOutputProtocols = [...this.allProtocolTypes];
+                // هنگام ورود به تب ساخت کانفیگ، فقط پروتکل‌هایی که پروکسی دارند انتخاب شوند
+                this.selectedOutputProtocols = this.allProtocolTypes.filter(pName => this.protocolCounts[pName] > 0);
             } else if (newTab === 'add-proxy') {
                 this.resetAddProxyForm();
                 this.detectedProxiesCount = 0;
                 this.fileContent = '';
                 this.linkInput = '';
+                this.clipboardContent = '';
             }
         }
     }

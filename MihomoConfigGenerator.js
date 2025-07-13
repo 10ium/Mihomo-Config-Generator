@@ -878,35 +878,44 @@ proxies:
   # این بخش با لیست پروکسی‌های کاربر پر می‌شود: {{user_proxies}}
 
 proxy-groups:
-  - name: "All User Proxies"
+  - name: "نوع انتخاب پروکسی 🔀"
+    icon: https://www.svgrepo.com/show/412721/choose.svg
     type: select
     proxies:
-      - {{user_proxy_names_comma_separated}} # Changed from {{user_proxy_names_list}}
-      - DIRECT
-
-  - name: "بدون فیلترشکن 🛡️"
+      - "خودکار (بهترین پینگ) 🤖"
+      - "پشتیبان (در صورت قطعی) 🧯"
+      - "دستی 🤏🏻"
+      - "قطع اینترنت ⛔"
+      - "بدون فیلترشکن 🛡️"
+  - name: "دستی 🤏🏻"
     type: select
-    icon: https://www.svgrepo.com/show/6318/connection.svg
-    hidden: true
+    icon: https://www.svgrepo.com/show/372331/cursor-hand-click.svg
     proxies:
-      - DIRECT
-
-  - name: "قطع اینترنت ⛔"
-    type: select
-    icon: https://www.svgrepo.com/show/305372/wifi-off.svg
-    hidden: true
+{{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود (بدون خط تیره شروع)
+  - name: "خودکار (بهترین پینگ) 🤖"
+    type: url-test
+    icon: https://www.svgrepo.com/show/7876/speedometer.svg
+    url: https://api.v2fly.org/checkConnection.svgz
+    interval: 600
+    timeout: 120000
+    tolerance: 500
+    max-failed-times: 6
+    lazy: true
     proxies:
-      - REJECT
-
-  - name: "اجازه ندادن 🚫"
-    type: select
-    icon: https://www.svgrepo.com/show/444307/gui-ban.svg
-    hidden: true
+{{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود (بدون خط تیره شروع)
+  - name: "پشتیبان (در صورت قطعی) 🧯"
+    type: fallback
+    icon: https://www.svgrepo.com/show/415208/backup-cloud-document.svg
+    url: https://www.gstatic.com/generate_204
+    interval: 600
+    timeout: 120000
+    max-failed-times: 3
+    lazy: true
     proxies:
-      - REJECT
+{{user_proxy_names_list}} # <--- این خط با لیست نام‌های پروکسی‌های کاربر پر می‌شود (بدون خط تیره شروع)
 
 rules:
-  - MATCH,All User Proxies
+  - MATCH,نوع انتخاب پروکسی 🔀
 `;
 
 

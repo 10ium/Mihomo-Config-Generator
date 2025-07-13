@@ -165,7 +165,67 @@ class TUICProxy extends BaseProtocol {
                 placeholder: "مثال: example.com",
                 required: false,
                 description: "نام دامنه برای SNI (اختیاری)" // Domain name for SNI (optional)
-            }
+            },
+            {
+                id: "ech-opts", // Added ECH Options
+                label: "ECH Options (JSON)", // ECH Options (JSON)
+                type: "textarea",
+                placeholder: 'مثال: {"enable": true, "config": "base64_encoded_config"}',
+                default: {},
+                required: false,
+                description: "تنظیمات ECH (Encrypted Client Hello)" // ECH (Encrypted Client Hello) settings
+            },
+            // Common fields
+            {
+                id: "ip-version",
+                label: "IP Version",
+                type: "select",
+                options: ["", "dual", "ipv4", "ipv6", "ipv4-prefer", "ipv6-prefer"],
+                default: "dual",
+                required: false,
+                description: "نسخه IP برای اتصال" // IP version for connection
+            },
+            {
+                id: "interface-name",
+                label: "نام اینترفیس (اختیاری)", // Interface Name (optional)
+                type: "text",
+                placeholder: "مثال: eth0",
+                required: false,
+                description: "مشخص کردن اینترفیس برای اتصال" // Specify the interface to which the node is bound
+            },
+            {
+                id: "routing-mark",
+                label: "Routing Mark (اختیاری)", // Routing Mark (optional)
+                type: "number",
+                placeholder: "مثال: 1234",
+                required: false,
+                description: "تگ مسیریابی برای اتصال" // The routing tag added when the node initiates a connection
+            },
+            {
+                id: "tfo",
+                label: "TCP Fast Open (TFO)", // TCP Fast Open (TFO)
+                type: "checkbox",
+                default: false,
+                required: false,
+                description: "فعال‌سازی TCP Fast Open" // Enable TCP Fast Open
+            },
+            {
+                id: "mptcp",
+                label: "TCP Multi Path (MPTCP)", // TCP Multi Path (MPTCP)
+                type: "checkbox",
+                default: false,
+                required: false,
+                description: "فعال‌سازی TCP Multi Path" // Enable TCP Multi Path
+            },
+            {
+                id: "dialer-proxy",
+                label: "Dialer Proxy (اختیاری)", // Dialer Proxy (optional)
+                type: "text",
+                placeholder: "مثال: ss1",
+                required: false,
+                description: "شناسه پروکسی/گروه پروکسی برای ارسال ترافیک" // Specifies the current network connection established proxies through
+            },
+            // SMUX is not typically applicable for TUIC as it uses QUIC multiplexing natively.
         ];
     }
 
@@ -193,7 +253,15 @@ class TUICProxy extends BaseProtocol {
                     "fast-open": false,
                     "skip-cert-verify": false,
                     "max-open-streams": 20,
-                    sni: ""
+                    sni: "",
+                    "ech-opts": {}, // Added
+                    "ip-version": "dual", // Added
+                    "interface-name": "",
+                    "routing-mark": null,
+                    tfo: false,
+                    mptcp: false,
+                    "dialer-proxy": "",
+                    smux: false
                 }
             },
             {
@@ -218,7 +286,15 @@ class TUICProxy extends BaseProtocol {
                     "fast-open": false,
                     "skip-cert-verify": false,
                     "max-open-streams": 20,
-                    sni: ""
+                    sni: "",
+                    "ech-opts": {}, // Added
+                    "ip-version": "dual", // Added
+                    "interface-name": "",
+                    "routing-mark": null,
+                    tfo: false,
+                    mptcp: false,
+                    "dialer-proxy": "",
+                    smux: false
                 }
             }
         ];
@@ -293,6 +369,43 @@ class TUICProxy extends BaseProtocol {
         if (userConfig.sni) {
             mihomoConfig.sni = userConfig.sni;
         }
+
+        // ECH Options (Added)
+        if (userConfig["ech-opts"] && userConfig["ech-opts"] !== '{}') {
+            try {
+                const parsedEchOpts = typeof userConfig["ech-opts"] === 'string' ? JSON.parse(userConfig["ech-opts"]) : userConfig["ech-opts"];
+                if (typeof parsedEchOpts === 'object' && parsedEchOpts !== null) {
+                    mihomoConfig["ech-opts"] = parsedEchOpts;
+                } else {
+                    console.warn(`ECH Options نامعتبر برای پروکسی ${proxyName}: ${userConfig["ech-opts"]}`);
+                }
+            } catch (e) {
+                console.warn(`ECH Options JSON نامعتبر برای پروکسی ${proxyName}: ${userConfig["ech-opts"]}`, e);
+            }
+        }
+
+        // Common fields (Added)
+        if (userConfig["ip-version"]) {
+            mihomoConfig["ip-version"] = userConfig["ip-version"];
+        }
+        if (userConfig["interface-name"]) {
+            mihomoConfig["interface-name"] = userConfig["interface-name"];
+        }
+        if (userConfig["routing-mark"]) {
+            mihomoConfig["routing-mark"] = parseInt(userConfig["routing-mark"]);
+        }
+        if (typeof userConfig.tfo === 'boolean') {
+            mihomoConfig.tfo = userConfig.tfo;
+        }
+        if (typeof userConfig.mptcp === 'boolean') {
+            mihomoConfig.mptcp = userConfig.mptcp;
+        }
+        if (userConfig["dialer-proxy"]) {
+            mihomoConfig["dialer-proxy"] = userConfig["dialer-proxy"];
+        }
+        // SMUX is not typically applicable for TUIC as it uses QUIC multiplexing natively.
+        mihomoConfig.smux = { enabled: false };
+
 
         return mihomoConfig;
     }

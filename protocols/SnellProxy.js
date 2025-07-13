@@ -64,7 +64,67 @@ class SnellProxy extends BaseProtocol {
                 default: true,
                 required: false,
                 description: "فعال‌سازی ارسال ترافیک UDP از طریق پروکسی (فقط برای Snell v3)" // Enable UDP traffic relay through the proxy (only for Snell v3)
-            }
+            },
+            // Common fields
+            {
+                id: "ip-version",
+                label: "IP Version",
+                type: "select",
+                options: ["", "dual", "ipv4", "ipv6", "ipv4-prefer", "ipv6-prefer"],
+                default: "dual",
+                required: false,
+                description: "نسخه IP برای اتصال" // IP version for connection
+            },
+            {
+                id: "interface-name",
+                label: "نام اینترفیس (اختیاری)", // Interface Name (optional)
+                type: "text",
+                placeholder: "مثال: eth0",
+                required: false,
+                description: "مشخص کردن اینترفیس برای اتصال" // Specify the interface to which the node is bound
+            },
+            {
+                id: "routing-mark",
+                label: "Routing Mark (اختیاری)", // Routing Mark (optional)
+                type: "number",
+                placeholder: "مثال: 1234",
+                required: false,
+                description: "تگ مسیریابی برای اتصال" // The routing tag added when the node initiates a connection
+            },
+            {
+                id: "tfo",
+                label: "TCP Fast Open (TFO)", // TCP Fast Open (TFO)
+                type: "checkbox",
+                default: false,
+                required: false,
+                description: "فعال‌سازی TCP Fast Open" // Enable TCP Fast Open
+            },
+            {
+                id: "mptcp",
+                label: "TCP Multi Path (MPTCP)", // TCP Multi Path (MPTCP)
+                type: "checkbox",
+                default: false,
+                required: false,
+                description: "فعال‌سازی TCP Multi Path" // Enable TCP Multi Path
+            },
+            {
+                id: "dialer-proxy",
+                label: "Dialer Proxy (اختیاری)", // Dialer Proxy (optional)
+                type: "text",
+                placeholder: "مثال: ss1",
+                required: false,
+                description: "شناسه پروکسی/گروه پروکسی برای ارسال ترافیک" // Specifies the current network connection established proxies through
+            },
+            {
+                id: "smux",
+                label: "فعال‌سازی SMUX", // Enable SMUX
+                type: "checkbox",
+                default: false, // SMUX is for TCP-based protocols, Snell is UDP-based by default for v3
+                required: false,
+                description: "فعال‌سازی Stream Multiplexing (معمولاً برای Snell پشتیبانی نمی‌شود)" // Enable Stream Multiplexing (usually not supported for Snell)
+            },
+            // SMUX sub-fields are not added here as SMUX is generally not for Snell transport.
+            // If it were, they would be added with dependency on 'smux'.
         ];
     }
 
@@ -83,7 +143,14 @@ class SnellProxy extends BaseProtocol {
                         mode: "http",
                         host: "bing.com"
                     },
-                    udp: true
+                    udp: true,
+                    "ip-version": "dual",
+                    "interface-name": "",
+                    "routing-mark": null,
+                    tfo: false,
+                    mptcp: false,
+                    "dialer-proxy": "",
+                    smux: false
                 }
             },
             {
@@ -99,7 +166,14 @@ class SnellProxy extends BaseProtocol {
                         mode: "tls",
                         host: "example.com"
                     },
-                    udp: true
+                    udp: true,
+                    "ip-version": "dual",
+                    "interface-name": "",
+                    "routing-mark": null,
+                    tfo: false,
+                    mptcp: false,
+                    "dialer-proxy": "",
+                    smux: false
                 }
             },
             {
@@ -112,7 +186,14 @@ class SnellProxy extends BaseProtocol {
                     psk: "YOUR_PSK_HERE",
                     version: "1",
                     "obfs-opts": {},
-                    udp: false // UDP not supported for v1
+                    udp: false, // UDP not supported for v1
+                    "ip-version": "dual",
+                    "interface-name": "",
+                    "routing-mark": null,
+                    tfo: false,
+                    mptcp: false,
+                    "dialer-proxy": "",
+                    smux: false
                 }
             }
         ];
@@ -150,6 +231,29 @@ class SnellProxy extends BaseProtocol {
                 console.warn(`Obfuscation Options JSON نامعتبر برای پروکسی ${proxyName}: ${userConfig["obfs-opts"]}`, e);
             }
         }
+
+        // Common fields
+        if (userConfig["ip-version"]) {
+            mihomoConfig["ip-version"] = userConfig["ip-version"];
+        }
+        if (userConfig["interface-name"]) {
+            mihomoConfig["interface-name"] = userConfig["interface-name"];
+        }
+        if (userConfig["routing-mark"]) {
+            mihomoConfig["routing-mark"] = parseInt(userConfig["routing-mark"]);
+        }
+        if (typeof userConfig.tfo === 'boolean') {
+            mihomoConfig.tfo = userConfig.tfo;
+        }
+        if (typeof userConfig.mptcp === 'boolean') {
+            mihomoConfig.mptcp = userConfig.mptcp;
+        }
+        if (userConfig["dialer-proxy"]) {
+            mihomoConfig["dialer-proxy"] = userConfig["dialer-proxy"];
+        }
+        // SMUX is not typically applicable for Snell as it's primarily UDP-based for v3.
+        mihomoConfig.smux = { enabled: false };
+
 
         return mihomoConfig;
     }

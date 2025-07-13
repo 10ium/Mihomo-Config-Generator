@@ -170,7 +170,57 @@ class HysteriaProxy extends BaseProtocol {
                 default: true,
                 required: false,
                 description: "فعال‌سازی ارسال ترافیک UDP از طریق پروکسی" // Enable UDP traffic relay through the proxy
-            }
+            },
+            {
+                id: "ip-version", // Added
+                label: "IP Version",
+                type: "select",
+                options: ["", "dual", "ipv4", "ipv6", "ipv4-prefer", "ipv6-prefer"],
+                default: "dual",
+                required: false,
+                description: "نسخه IP برای اتصال" // IP version for connection
+            },
+            {
+                id: "interface-name", // Added
+                label: "نام اینترفیس (اختیاری)", // Interface Name (optional)
+                type: "text",
+                placeholder: "مثال: eth0",
+                required: false,
+                description: "مشخص کردن اینترفیس برای اتصال" // Specify the interface to which the node is bound
+            },
+            {
+                id: "routing-mark", // Added
+                label: "Routing Mark (اختیاری)", // Routing Mark (optional)
+                type: "number",
+                placeholder: "مثال: 1234",
+                required: false,
+                description: "تگ مسیریابی برای اتصال" // The routing tag added when the node initiates a connection
+            },
+            {
+                id: "tfo", // Added
+                label: "TCP Fast Open (TFO)", // TCP Fast Open (TFO)
+                type: "checkbox",
+                default: false,
+                required: false,
+                description: "فعال‌سازی TCP Fast Open" // Enable TCP Fast Open
+            },
+            {
+                id: "mptcp", // Added
+                label: "TCP Multi Path (MPTCP)", // TCP Multi Path (MPTCP)
+                type: "checkbox",
+                default: false,
+                required: false,
+                description: "فعال‌سازی TCP Multi Path" // Enable TCP Multi Path
+            },
+            {
+                id: "dialer-proxy", // Added
+                label: "Dialer Proxy (اختیاری)", // Dialer Proxy (optional)
+                type: "text",
+                placeholder: "مثال: ss1",
+                required: false,
+                description: "شناسه پروکسی/گروه پروکسی برای ارسال ترافیک" // Specifies the current network connection established proxies through
+            },
+            // Hysteria v1 does not use MiHoMo's generic 'smux' field as it's QUIC-based.
         ];
     }
 
@@ -199,7 +249,14 @@ class HysteriaProxy extends BaseProtocol {
                     disable_mtu_discovery: false,
                     fingerprint: "",
                     "fast-open": false,
-                    udp: true
+                    udp: true,
+                    "ip-version": "dual", // Added default
+                    "interface-name": "",
+                    "routing-mark": null,
+                    tfo: false,
+                    mptcp: false,
+                    "dialer-proxy": "",
+                    smux: false // Explicitly set to false as it's not applicable
                 }
             }
         ];
@@ -270,6 +327,29 @@ class HysteriaProxy extends BaseProtocol {
         if (typeof userConfig["fast-open"] === 'boolean') {
             mihomoConfig["fast-open"] = userConfig["fast-open"];
         }
+
+        // Added common fields
+        if (userConfig["ip-version"]) {
+            mihomoConfig["ip-version"] = userConfig["ip-version"];
+        }
+        if (userConfig["interface-name"]) {
+            mihomoConfig["interface-name"] = userConfig["interface-name"];
+        }
+        if (userConfig["routing-mark"]) {
+            mihomoConfig["routing-mark"] = parseInt(userConfig["routing-mark"]);
+        }
+        if (typeof userConfig.tfo === 'boolean') {
+            mihomoConfig.tfo = userConfig.tfo;
+        }
+        if (typeof userConfig.mptcp === 'boolean') {
+            mihomoConfig.mptcp = userConfig.mptcp;
+        }
+        if (userConfig["dialer-proxy"]) {
+            mihomoConfig["dialer-proxy"] = userConfig["dialer-proxy"];
+        }
+        // SMUX is not typically applicable for Hysteria as it uses QUIC multiplexing natively.
+        mihomoConfig.smux = { enabled: false };
+
 
         return mihomoConfig;
     }

@@ -8,6 +8,21 @@
 class LinkParser {
 
     /**
+     * Converts a regular GitHub URL to its raw content URL.
+     * @param {string} githubUrl - The GitHub URL (e.g., https://github.com/user/repo/blob/branch/file.txt)
+     * @returns {string|null} - The raw content URL or null if not a recognized GitHub URL.
+     */
+    static getGitHubRawUrl(githubUrl) {
+        const githubBlobRegex = /https:\/\/github\.com\/([a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)\/blob\/([a-zA-Z0-9._-]+)\/(.*)/;
+        const match = githubUrl.match(githubBlobRegex);
+        if (match && match.length === 4) {
+            const [, repoPath, branch, filePath] = match;
+            return `https://raw.githubusercontent.com/${repoPath}/${branch}/${filePath}`;
+        }
+        return null;
+    }
+
+    /**
      * Parses a SOCKS5 link.
      * Expected format: socks5://[username:password@]server:port[?params][#name]
      * @param {string} link - The SOCKS5 link.
@@ -18,6 +33,7 @@ class LinkParser {
             const url = new URL(link);
             const proxy = {
                 type: "socks5",
+                name: url.hash ? decodeURIComponent(url.hash.substring(1)) : `SOCKS5-${url.hostname}:${url.port}`,
                 server: url.hostname,
                 port: parseInt(url.port)
             };
@@ -32,8 +48,23 @@ class LinkParser {
             if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
             if (params.has('fingerprint')) proxy.fingerprint = params.get('fingerprint');
 
-            // The proxy name is extracted from the hash part (#), otherwise a default name is created.
-            proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `SOCKS5-${proxy.server}:${proxy.port}`;
+            // ECH Options
+            if (params.has('ech-enable') || params.has('ech-config')) {
+                const echOpts = {};
+                if (params.has('ech-enable')) echOpts.enable = params.get('ech-enable').toLowerCase() === 'true';
+                if (params.has('ech-config')) echOpts.config = params.get('ech-config');
+                proxy['ech-opts'] = echOpts;
+            }
+
+            // Common fields
+            if (params.has('interface-name')) proxy['interface-name'] = params.get('interface-name');
+            if (params.has('routing-mark')) proxy['routing-mark'] = parseInt(params.get('routing-mark'));
+            if (params.has('tfo')) proxy.tfo = params.get('tfo').toLowerCase() === 'true';
+            if (params.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (params.has('dialer-proxy')) proxy['dialer-proxy'] = params.get('dialer-proxy');
+            if (params.has('smux')) proxy.smux = { enabled: params.get('smux').toLowerCase() === 'true' };
+            else { proxy.smux = { enabled: false }; } // Default if not specified
+
             return proxy;
         } catch (e) {
             console.error("Error parsing SOCKS5 link:", link, e);
@@ -52,6 +83,7 @@ class LinkParser {
             const url = new URL(link);
             const proxy = {
                 type: "http",
+                name: url.hash ? decodeURIComponent(url.hash.substring(1)) : `HTTP-${url.hostname}:${url.port}`,
                 server: url.hostname,
                 port: parseInt(url.port)
             };
@@ -66,16 +98,53 @@ class LinkParser {
             if (params.has('sni')) proxy.sni = params.get('sni');
             if (params.has('fingerprint')) proxy.fingerprint = params.get('fingerprint');
             if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
+            if (params.has('alpn')) {
+                try {
+                    proxy.alpn = params.get('alpn').split(',');
+                } catch (e) {
+                    console.warn(`Invalid ALPN format in HTTP link: ${params.get('alpn')}`);
+                }
+            }
+
+            // HTTP Options
+            const httpOpts = {};
+            if (params.has('method')) httpOpts.method = params.get('method');
+            if (params.has('path')) {
+                try {
+                    const httpPathStr = params.get('path');
+                    httpOpts.path = httpPathStr.startsWith('[') && httpPathStr.endsWith(']') ? JSON.parse(httpPathStr) : [httpPathStr];
+                } catch (e) {
+                    console.warn(`Invalid HTTP path in HTTP link: ${params.get('path')}`, e);
+                }
+            }
             if (params.has('headers')) {
                 try {
-                    // Headers are in JSON string format in the URL, they need to be parsed.
-                    proxy.headers = JSON.parse(decodeURIComponent(params.get('headers')));
+                    httpOpts.headers = JSON.parse(decodeURIComponent(params.get('headers')));
                 } catch (e) {
                     console.warn("Invalid JSON headers in HTTP link:", params.get('headers'));
                 }
             }
-            // The proxy name is extracted from the hash part (#), otherwise a default name is created.
-            proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `HTTP-${proxy.server}:${proxy.port}`;
+            if (Object.keys(httpOpts).length > 0) {
+                proxy['http-opts'] = httpOpts;
+            }
+
+            // ECH Options
+            if (params.has('ech-enable') || params.has('ech-config')) {
+                const echOpts = {};
+                if (params.has('ech-enable')) echOpts.enable = params.get('ech-enable').toLowerCase() === 'true';
+                if (params.has('ech-config')) echOpts.config = params.get('ech-config');
+                proxy['ech-opts'] = echOpts;
+            }
+
+            // Common fields
+            if (params.has('udp')) proxy.udp = params.get('udp').toLowerCase() === 'true';
+            if (params.has('interface-name')) proxy['interface-name'] = params.get('interface-name');
+            if (params.has('routing-mark')) proxy['routing-mark'] = parseInt(params.get('routing-mark'));
+            if (params.has('tfo')) proxy.tfo = params.get('tfo').toLowerCase() === 'true';
+            if (params.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (params.has('dialer-proxy')) proxy['dialer-proxy'] = params.get('dialer-proxy');
+            proxy.smux = { enabled: false }; // SMUX not typically supported for HTTP transport
+
             return proxy;
         } catch (e) {
             console.error("Error parsing HTTP link:", link, e);
@@ -142,7 +211,7 @@ class LinkParser {
                         const value = decodeURIComponent(pair.substring(eqIndex + 1));
                         paramsMap.set(key, value);
                     } else if (pair) {
-                        paramsMap.set(decodeURIComponent(pair), ''); // Handle flag parameters
+                        paramsMap.set(decodeURIComponent(pair), '');
                     }
                 });
             }
@@ -158,15 +227,50 @@ class LinkParser {
                         if (!wsOpts.headers) wsOpts.headers = {};
                         wsOpts.headers.Host = paramsMap.get('host');
                     }
+                    if (paramsMap.has('max-early-data')) wsOpts['max-early-data'] = parseInt(paramsMap.get('max-early-data'));
+                    if (paramsMap.has('early-data-header-name')) wsOpts['early-data-header-name'] = paramsMap.get('early-data-header-name');
+                    if (paramsMap.has('v2ray-http-upgrade')) wsOpts['v2ray-http-upgrade'] = paramsMap.get('v2ray-http-upgrade').toLowerCase() === 'true';
+                    if (paramsMap.has('v2ray-http-upgrade-fast-open')) wsOpts['v2ray-http-upgrade-fast-open'] = paramsMap.get('v2ray-http-upgrade-fast-open').toLowerCase() === 'true';
                     if (Object.keys(wsOpts).length > 0) {
                         proxy['ws-opts'] = wsOpts; 
                     }
                 } else if (['grpc', 'h2', 'http', 'tcp'].includes(networkType)) {
                     proxy.network = networkType;
-                    // MiHoMo for VLESS with network: tcp does not require a specific flow unless explicitly xtls-rprx-vision
-                    // but for network: grpc, it requires grpc-opts.
-                    if (networkType === 'grpc' && paramsMap.has('serviceName')) {
-                        proxy['grpc-opts'] = { 'grpc-service-name': paramsMap.get('serviceName') };
+                    if (networkType === 'grpc') {
+                        const grpcOpts = {};
+                        if (paramsMap.has('grpc-service-name')) grpcOpts['grpc-service-name'] = paramsMap.get('grpc-service-name');
+                        if (Object.keys(grpcOpts).length > 0) proxy['grpc-opts'] = grpcOpts;
+                    } else if (networkType === 'http') {
+                        const httpOpts = {};
+                        if (paramsMap.has('http-method')) httpOpts.method = paramsMap.get('http-method');
+                        if (params.has('http-path')) {
+                            try {
+                                const httpPathStr = paramsMap.get('http-path');
+                                httpOpts.path = httpPathStr.startsWith('[') && httpPathStr.endsWith(']') ? JSON.parse(httpPathStr) : [httpPathStr];
+                            } catch (e) {
+                                console.warn(`Invalid HTTP path in VLESS link: ${paramsMap.get('http-path')}`, e);
+                            }
+                        }
+                        if (params.has('http-headers')) {
+                            try {
+                                httpOpts.headers = JSON.parse(paramsMap.get('http-headers'));
+                            } catch (e) {
+                                console.warn(`Invalid HTTP headers in VLESS link: ${paramsMap.get('http-headers')}`, e);
+                            }
+                        }
+                        if (Object.keys(httpOpts).length > 0) proxy['http-opts'] = httpOpts;
+                    } else if (networkType === 'h2') {
+                        const h2Opts = {};
+                        if (params.has('h2-host')) {
+                            try {
+                                const h2HostStr = paramsMap.get('h2-host');
+                                h2Opts.host = h2HostStr.startsWith('[') && h2HostStr.endsWith(']') ? JSON.parse(h2HostStr) : [h2HostStr];
+                            } catch (e) {
+                                console.warn(`Invalid H2 host in VLESS link: ${paramsMap.get('h2-host')}`, e);
+                            }
+                        }
+                        if (params.has('h2-path')) h2Opts.path = params.get('h2-path');
+                        if (Object.keys(h2Opts).length > 0) proxy['h2-opts'] = h2Opts;
                     }
                 }
             }
@@ -177,9 +281,7 @@ class LinkParser {
                 if (securityType === 'tls' || securityType === 'reality') {
                     proxy.tls = true;
                     if (paramsMap.has('sni')) proxy.servername = paramsMap.get('sni');
-                    // 'fp' in VLESS links usually refers to client-fingerprint
                     if (paramsMap.has('fp')) proxy['client-fingerprint'] = paramsMap.get('fp'); 
-                    // 'fingerprint' is for server certificate fingerprint, if explicitly provided in the link
                     if (paramsMap.has('fingerprint')) proxy.fingerprint = paramsMap.get('fingerprint'); 
                     
                     if (paramsMap.has('alpn')) {
@@ -189,7 +291,6 @@ class LinkParser {
                             console.warn(`Invalid ALPN format in VLESS link: ${paramsMap.get('alpn')}`);
                         }
                     }
-                    // Check 'allowInsecure' or 'skip-cert-verify'
                     if ((paramsMap.has('allowInsecure') && paramsMap.get('allowInsecure').toLowerCase() === 'true') ||
                         (paramsMap.has('skip-cert-verify') && paramsMap.get('skip-cert-verify').toLowerCase() === 'true')) {
                         proxy['skip-cert-verify'] = true;
@@ -199,10 +300,10 @@ class LinkParser {
                         const realityOpts = {};
                         if (paramsMap.has('pbk')) realityOpts['public-key'] = paramsMap.get('pbk');
                         if (paramsMap.has('sid')) realityOpts['short-id'] = paramsMap.get('sid');
+                        if (paramsMap.has('support-x25519mlkem768')) realityOpts['support-x25519mlkem768'] = paramsMap.get('support-x25519mlkem768').toLowerCase() === 'true';
                         if (Object.keys(realityOpts).length > 0) {
                             proxy['reality-opts'] = realityOpts; 
                         }
-                        // Reality implicitly sets client-fingerprint to chrome if not specified
                         if (!proxy['client-fingerprint']) {
                             proxy['client-fingerprint'] = 'chrome';
                         }
@@ -214,19 +315,31 @@ class LinkParser {
             if (paramsMap.has('flow')) proxy.flow = paramsMap.get('flow');
             if (paramsMap.has('packet-encoding')) proxy['packet-encoding'] = paramsMap.get('packet-encoding');
             if (paramsMap.has('ip-version')) proxy['ip-version'] = paramsMap.get('ip-version');
-            // smux in MiHoMo is an object with enabled: true/false, not just a boolean
             if (paramsMap.has('smux')) {
-                proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' }; // Fix: Store as object {enabled: boolean}
+                proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' };
             } else {
-                proxy.smux = { enabled: false }; // Explicitly set to false if not in link
+                proxy.smux = { enabled: false };
             }
 
-            // Fix: Handle 'extra' parameter (Issue 1)
-            // As 'extra' is not a standard Mihomo VLESS field and its sub-fields
-            // are not directly mappable without more context, we will warn about it.
             if (paramsMap.has('extra')) {
                 console.warn(`Parameter 'extra' found in VLESS link but ignored due to no direct MiHoMo support: ${paramsMap.get('extra')}`);
             }
+
+            // ECH Options
+            if (paramsMap.has('ech-enable') || paramsMap.has('ech-config')) {
+                const echOpts = {};
+                if (paramsMap.has('ech-enable')) echOpts.enable = paramsMap.get('ech-enable').toLowerCase() === 'true';
+                if (paramsMap.has('ech-config')) echOpts.config = paramsMap.get('ech-config');
+                proxy['ech-opts'] = echOpts;
+            }
+
+            // Common fields
+            if (paramsMap.has('interface-name')) proxy['interface-name'] = paramsMap.get('interface-name');
+            if (paramsMap.has('routing-mark')) proxy['routing-mark'] = parseInt(paramsMap.get('routing-mark'));
+            if (paramsMap.has('tfo')) proxy.tfo = paramsMap.get('tfo').toLowerCase() === 'true';
+            if (paramsMap.has('mptcp')) proxy.mptcp = paramsMap.get('mptcp').toLowerCase() === 'true';
+            if (paramsMap.has('dialer-proxy')) proxy['dialer-proxy'] = paramsMap.get('dialer-proxy');
+
 
             return proxy;
 
@@ -308,6 +421,23 @@ class LinkParser {
                 }
             }
             if (paramsMap.has('skip-cert-verify')) proxy['skip-cert-verify'] = params.get('skip-cert-verify').toLowerCase() === 'true';
+
+            // ECH Options
+            if (paramsMap.has('ech-enable') || paramsMap.has('ech-config')) {
+                const echOpts = {};
+                if (paramsMap.has('ech-enable')) echOpts.enable = paramsMap.get('ech-enable').toLowerCase() === 'true';
+                if (paramsMap.has('ech-config')) echOpts.config = paramsMap.get('ech-config');
+                proxy['ech-opts'] = echOpts;
+            }
+
+            // Common fields
+            if (paramsMap.has('ip-version')) proxy['ip-version'] = paramsMap.get('ip-version');
+            if (paramsMap.has('interface-name')) proxy['interface-name'] = paramsMap.get('interface-name');
+            if (paramsMap.has('routing-mark')) proxy['routing-mark'] = parseInt(paramsMap.get('routing-mark'));
+            if (paramsMap.has('tfo')) proxy.tfo = paramsMap.get('tfo').toLowerCase() === 'true';
+            if (paramsMap.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (paramsMap.has('dialer-proxy')) proxy['dialer-proxy'] = paramsMap.get('dialer-proxy');
+            proxy.smux = { enabled: false }; // SMUX not typically supported for AnyTLS transport
 
             return proxy;
 
@@ -393,7 +523,7 @@ class LinkParser {
                 }
                 catch (e) {
                     console.warn(`Invalid Allowed IPs in WireGuard link: ${paramsMap.get('allowed_ips')}`, e);
-                    proxy.peers[0]["allowed-ips"] = [paramsMap.get('allowed_ips')]; // Fallback
+                    proxy.peers[0]["allowed-ips"] = ["0.0.0.0/0"]; // Fallback
                 }
             } else {
                 proxy.peers[0]["allowed-ips"] = ["0.0.0.0/0"]; // Default if not specified
@@ -427,9 +557,30 @@ class LinkParser {
                     proxy.dns = [paramsMap.get('dns')]; // Fallback
                 }
             }
-            // Amnezia WG options are complex and usually not in simple URIs.
-            // If needed, they would require a specific parameter like 'amnezia_opts'
-            // and JSON parsing, similar to 'extra' in VLESS.
+            if (paramsMap.has('amnezia-wg-option')) {
+                try {
+                    proxy['amnezia-wg-option'] = JSON.parse(paramsMap.get('amnezia-wg-option'));
+                } catch (e) {
+                    console.warn(`Invalid Amnezia WG Options in WireGuard link: ${paramsMap.get('amnezia-wg-option')}`, e);
+                }
+            }
+
+            // ECH Options
+            if (paramsMap.has('ech-enable') || paramsMap.has('ech-config')) {
+                const echOpts = {};
+                if (paramsMap.has('ech-enable')) echOpts.enable = paramsMap.get('ech-enable').toLowerCase() === 'true';
+                if (paramsMap.has('ech-config')) echOpts.config = paramsMap.get('ech-config');
+                proxy['ech-opts'] = echOpts;
+            }
+
+            // Common fields
+            if (paramsMap.has('interface-name')) proxy['interface-name'] = paramsMap.get('interface-name');
+            if (paramsMap.has('routing-mark')) proxy['routing-mark'] = parseInt(paramsMap.get('routing-mark'));
+            if (paramsMap.has('tfo')) proxy.tfo = paramsMap.get('tfo').toLowerCase() === 'true';
+            if (paramsMap.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (paramsMap.has('dialer-proxy')) proxy['dialer-proxy'] = paramsMap.get('dialer-proxy');
+            if (paramsMap.has('smux')) proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' };
+            else { proxy.smux = { enabled: false }; } // Default if not specified
 
             return proxy;
 
@@ -451,6 +602,7 @@ class LinkParser {
             const url = new URL(link);
             const proxy = {
                 type: "ssh",
+                name: url.hash ? decodeURIComponent(url.hash.substring(1)) : `SSH-${url.hostname}:${url.port}`,
                 server: url.hostname,
                 port: parseInt(url.port) || 22, // Default SSH port is 22
                 udp: true // Default UDP relay for SSH
@@ -486,14 +638,30 @@ class LinkParser {
                         proxy['host-key-algorithms'] = hostKeyAlgosStr.split(','); // Assume comma-separated if not array
                     }
                 } catch (e) {
-                    console.warn(`Invalid Host Key Algorithms in SSH link: ${params.get('host-key-algorithms')}`, e);
-                    proxy['host-key-algorithms'] = [params.get('host-key-algorithms')]; // Fallback
+                    console.warn(`Invalid Host Key Algorithms in SSH link: ${paramsMap.get('host-key-algorithms')}`, e);
+                    proxy['host-key-algorithms'] = [paramsMap.get('host-key-algorithms')]; // Fallback
                 }
             }
             if (params.has('udp')) proxy.udp = params.get('udp').toLowerCase() === 'true';
 
-            // The proxy name is extracted from the hash part (#), otherwise a default name is created.
-            proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `SSH-${proxy.server}:${proxy.port}`;
+            // ECH Options
+            if (params.has('ech-enable') || params.has('ech-config')) {
+                const echOpts = {};
+                if (params.has('ech-enable')) echOpts.enable = params.get('ech-enable').toLowerCase() === 'true';
+                if (params.has('ech-config')) echOpts.config = params.get('ech-config');
+                proxy['ech-opts'] = echOpts;
+            }
+
+            // Common fields
+            if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
+            if (params.has('interface-name')) proxy['interface-name'] = params.get('interface-name');
+            if (params.has('routing-mark')) proxy['routing-mark'] = parseInt(params.get('routing-mark'));
+            if (params.has('tfo')) proxy.tfo = params.get('tfo').toLowerCase() === 'true';
+            if (params.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (params.has('dialer-proxy')) proxy['dialer-proxy'] = params.get('dialer-proxy');
+            if (params.has('smux')) proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' };
+            else { proxy.smux = { enabled: false }; } // Default if not specified
+
             return proxy;
         } catch (e) {
             console.error("Error parsing SSH link:", link, e);
@@ -610,6 +778,25 @@ class LinkParser {
             if (paramsMap.has('max-open-streams')) proxy['max-open-streams'] = parseInt(paramsMap.get('max-open-streams'));
             if (paramsMap.has('sni')) proxy.sni = paramsMap.get('sni');
 
+            // ECH Options
+            if (paramsMap.has('ech-enable') || paramsMap.has('ech-config')) {
+                const echOpts = {};
+                if (paramsMap.has('ech-enable')) echOpts.enable = paramsMap.get('ech-enable').toLowerCase() === 'true';
+                if (paramsMap.has('ech-config')) echOpts.config = paramsMap.get('ech-config');
+                proxy['ech-opts'] = echOpts;
+            }
+
+            // Common fields
+            if (paramsMap.has('ip-version')) proxy['ip-version'] = paramsMap.get('ip-version');
+            if (paramsMap.has('interface-name')) proxy['interface-name'] = paramsMap.get('interface-name');
+            if (paramsMap.has('routing-mark')) proxy['routing-mark'] = parseInt(paramsMap.get('routing-mark'));
+            if (paramsMap.has('tfo')) proxy.tfo = paramsMap.get('tfo').toLowerCase() === 'true';
+            if (paramsMap.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (paramsMap.has('dialer-proxy')) proxy['dialer-proxy'] = paramsMap.get('dialer-proxy');
+            if (paramsMap.has('smux')) proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' };
+            else { proxy.smux = { enabled: false }; } // Default if not specified
+
+
             return proxy;
 
         } catch (e) {
@@ -682,6 +869,7 @@ class LinkParser {
             if (paramsMap.has('sni')) proxy.sni = paramsMap.get('sni');
             if (paramsMap.has('skip-cert-verify')) proxy['skip-cert-verify'] = paramsMap.get('skip-cert-verify').toLowerCase() === 'true';
             if (paramsMap.has('fingerprint')) proxy.fingerprint = paramsMap.get('fingerprint');
+            if (paramsMap.has('client-fingerprint')) proxy['client-fingerprint'] = paramsMap.get('client-fingerprint');
             if (paramsMap.has('alpn')) {
                 try {
                     proxy.alpn = paramsMap.get('alpn').split(',');
@@ -692,6 +880,23 @@ class LinkParser {
             if (paramsMap.has('ca')) proxy.ca = paramsMap.get('ca');
             if (paramsMap.has('ca-str')) proxy['ca-str'] = paramsMap.get('ca-str');
             if (paramsMap.has('udp')) proxy.udp = paramsMap.get('udp').toLowerCase() === 'true';
+
+            // ECH Options
+            if (paramsMap.has('ech-enable') || paramsMap.has('ech-config')) {
+                const echOpts = {};
+                if (paramsMap.has('ech-enable')) echOpts.enable = paramsMap.get('ech-enable').toLowerCase() === 'true';
+                if (paramsMap.has('ech-config')) echOpts.config = paramsMap.get('ech-config');
+                proxy['ech-opts'] = echOpts;
+            }
+
+            // Common fields
+            if (paramsMap.has('ip-version')) proxy['ip-version'] = paramsMap.get('ip-version');
+            if (paramsMap.has('interface-name')) proxy['interface-name'] = paramsMap.get('interface-name');
+            if (paramsMap.has('routing-mark')) proxy['routing-mark'] = parseInt(paramsMap.get('routing-mark'));
+            if (paramsMap.has('tfo')) proxy.tfo = paramsMap.get('tfo').toLowerCase() === 'true';
+            if (paramsMap.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (paramsMap.has('dialer-proxy')) proxy['dialer-proxy'] = paramsMap.get('dialer-proxy');
+            // SMUX is not typically applicable for Hysteria2 as it uses QUIC multiplexing natively.
 
             return proxy;
 
@@ -712,6 +917,7 @@ class LinkParser {
             const url = new URL(link);
             const proxy = {
                 type: "hysteria",
+                name: url.hash ? decodeURIComponent(url.hash.substring(1)) : `Hysteria-${url.hostname}:${url.port}`,
                 server: url.hostname,
                 port: parseInt(url.port),
                 udp: true // Default UDP relay for Hysteria
@@ -742,8 +948,23 @@ class LinkParser {
             if (params.has('fingerprint')) proxy.fingerprint = params.get('fingerprint');
             if (params.has('ports')) proxy.ports = params.get('ports'); // Port jumping string
 
-            // The proxy name is extracted from the hash part (#), otherwise a default name is created.
-            proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `Hysteria-${proxy.server}:${proxy.port}`;
+            // ECH Options
+            if (params.has('ech-enable') || params.has('ech-config')) {
+                const echOpts = {};
+                if (params.has('ech-enable')) echOpts.enable = params.get('ech-enable').toLowerCase() === 'true';
+                if (params.has('ech-config')) echOpts.config = params.get('ech-config');
+                proxy['ech-opts'] = echOpts;
+            }
+
+            // Common fields
+            if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
+            if (params.has('interface-name')) proxy['interface-name'] = params.get('interface-name');
+            if (params.has('routing-mark')) proxy['routing-mark'] = parseInt(params.get('routing-mark'));
+            if (params.has('tfo')) proxy.tfo = params.get('tfo').toLowerCase() === 'true';
+            if (params.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (params.has('dialer-proxy')) proxy['dialer-proxy'] = params.get('dialer-proxy');
+            // SMUX is not typically applicable for Hysteria as it uses QUIC multiplexing natively.
+
             return proxy;
         } catch (e) {
             console.error("Error parsing Hysteria link:", link, e);
@@ -808,6 +1029,19 @@ class LinkParser {
                 });
             }
 
+            // Add network parsing from 'type' parameter (if 'network' is not present)
+            if (paramsMap.has('network')) {
+                proxy.network = paramsMap.get('network');
+            } else if (paramsMap.has('type')) {
+                const linkType = paramsMap.get('type');
+                if (['ws', 'grpc', 'h2', 'http', 'tcp'].includes(linkType)) {
+                    proxy.network = linkType;
+                } else if (linkType === 'xhttp') {
+                    proxy.network = 'ws';
+                }
+            }
+
+
             if (paramsMap.has('udp')) proxy.udp = paramsMap.get('udp').toLowerCase() === 'true';
             if (paramsMap.has('sni')) proxy.sni = paramsMap.get('sni');
             if (paramsMap.has('alpn')) {
@@ -835,14 +1069,75 @@ class LinkParser {
                 const realityOpts = {};
                 if (paramsMap.has('pbk')) realityOpts['public-key'] = paramsMap.get('pbk');
                 if (paramsMap.has('sid')) realityOpts['short-id'] = paramsMap.get('sid');
+                if (paramsMap.has('support-x25519mlkem768')) realityOpts['support-x25519mlkem768'] = paramsMap.get('support-x25519mlkem768').toLowerCase() === 'true';
                 proxy['reality-opts'] = realityOpts;
             } else {
                 proxy['reality-opts'] = {};
             }
 
-            if (paramsMap.has('network')) proxy.network = paramsMap.get('network');
             if (paramsMap.has('smux')) proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' };
             else { proxy.smux = { enabled: false }; } // Default if not specified
+
+            // Transport specific options (added for Trojan)
+            if (paramsMap.has('ws-path') || paramsMap.has('ws-headers') || paramsMap.has('ws-max-early-data') || paramsMap.has('ws-early-data-header-name') || paramsMap.has('ws-v2ray-http-upgrade') || paramsMap.has('ws-v2ray-http-upgrade-fast-open')) {
+                const wsOpts = {};
+                if (paramsMap.has('ws-path')) wsOpts.path = paramsMap.get('ws-path');
+                if (paramsMap.has('ws-headers')) {
+                    try { wsOpts.headers = JSON.parse(paramsMap.get('ws-headers')); } catch (e) { console.warn(`Invalid WS headers in Trojan link: ${paramsMap.get('ws-headers')}`, e); }
+                }
+                if (paramsMap.has('ws-max-early-data')) wsOpts['max-early-data'] = parseInt(paramsMap.get('ws-max-early-data'));
+                if (paramsMap.has('ws-early-data-header-name')) wsOpts['early-data-header-name'] = paramsMap.get('early-data-header-name');
+                if (paramsMap.has('ws-v2ray-http-upgrade')) wsOpts['v2ray-http-upgrade'] = paramsMap.get('ws-v2ray-http-upgrade').toLowerCase() === 'true';
+                if (paramsMap.has('ws-v2ray-http-upgrade-fast-open')) wsOpts['v2ray-http-upgrade-fast-open'] = paramsMap.get('ws-v2ray-http-upgrade-fast-open').toLowerCase() === 'true';
+                proxy['ws-opts'] = wsOpts;
+            }
+            if (paramsMap.has('grpc-service-name')) {
+                const grpcOpts = {};
+                grpcOpts['grpc-service-name'] = paramsMap.get('grpc-service-name');
+                proxy['grpc-opts'] = grpcOpts;
+            }
+            if (paramsMap.has('http-method') || paramsMap.has('http-path') || paramsMap.has('http-headers')) {
+                const httpOpts = {};
+                if (paramsMap.has('http-method')) httpOpts.method = paramsMap.get('http-method');
+                if (params.has('http-path')) {
+                    try {
+                        const httpPathStr = paramsMap.get('http-path');
+                        httpOpts.path = httpPathStr.startsWith('[') && httpPathStr.endsWith(']') ? JSON.parse(httpPathStr) : [httpPathStr];
+                    } catch (e) { console.warn(`Invalid HTTP path in Trojan link: ${paramsMap.get('http-path')}`, e); }
+                }
+                if (params.has('http-headers')) {
+                    try { httpOpts.headers = JSON.parse(paramsMap.get('http-headers')); } catch (e) { console.warn(`Invalid HTTP headers in Trojan link: ${paramsMap.get('http-headers')}`, e); }
+                }
+                proxy['http-opts'] = httpOpts;
+            }
+            if (paramsMap.has('h2-host') || paramsMap.has('h2-path')) {
+                const h2Opts = {};
+                if (params.has('h2-host')) {
+                    try {
+                        const h2HostStr = paramsMap.get('h2-host');
+                        h2Opts.host = h2HostStr.startsWith('[') && h2HostStr.endsWith(']') ? JSON.parse(h2HostStr) : [h2HostStr];
+                    } catch (e) { console.warn(`Invalid H2 host in Trojan link: ${paramsMap.get('h2-host')}`, e); }
+                }
+                if (params.has('h2-path')) h2Opts.path = params.get('h2-path');
+                proxy['h2-opts'] = h2Opts;
+            }
+
+            // ECH Options
+            if (paramsMap.has('ech-enable') || paramsMap.has('ech-config')) {
+                const echOpts = {};
+                if (paramsMap.has('ech-enable')) echOpts.enable = paramsMap.get('ech-enable').toLowerCase() === 'true';
+                if (paramsMap.has('ech-config')) echOpts.config = paramsMap.get('ech-config');
+                proxy['ech-opts'] = echOpts;
+            }
+
+            // Common fields
+            if (paramsMap.has('ip-version')) proxy['ip-version'] = paramsMap.get('ip-version');
+            if (paramsMap.has('interface-name')) proxy['interface-name'] = paramsMap.get('interface-name');
+            if (paramsMap.has('routing-mark')) proxy['routing-mark'] = parseInt(paramsMap.get('routing-mark'));
+            if (paramsMap.has('tfo')) proxy.tfo = paramsMap.get('tfo').toLowerCase() === 'true';
+            if (paramsMap.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (paramsMap.has('dialer-proxy')) proxy['dialer-proxy'] = params.get('dialer-proxy');
+
 
             return proxy;
 
@@ -937,24 +1232,90 @@ class LinkParser {
                 const realityOpts = {};
                 if (paramsMap.has('pbk')) realityOpts['public-key'] = paramsMap.get('pbk');
                 if (paramsMap.has('sid')) realityOpts['short-id'] = paramsMap.get('sid');
+                if (paramsMap.has('support-x25519mlkem768')) realityOpts['support-x25519mlkem768'] = paramsMap.get('support-x25519mlkem768').toLowerCase() === 'true';
                 proxy['reality-opts'] = realityOpts;
             } else {
                 proxy['reality-opts'] = {};
             }
 
+            // ECH Options
+            if (paramsMap.has('ech-enable') || paramsMap.has('ech-config')) {
+                const echOpts = {};
+                if (paramsMap.has('ech-enable')) echOpts.enable = paramsMap.get('ech-enable').toLowerCase() === 'true';
+                if (paramsMap.has('ech-config')) echOpts.config = paramsMap.get('ech-config');
+                proxy['ech-opts'] = echOpts;
+            }
+
             // Network and its options
-            if (paramsMap.has('network')) proxy.network = paramsMap.get('network');
+            if (paramsMap.has('network')) { // Check for 'network' parameter first (MiHoMo native)
+                proxy.network = paramsMap.get('network');
+            } else if (paramsMap.has('type')) { // Check for 'type' parameter (common in some link formats)
+                const linkType = paramsMap.get('type');
+                if (['ws', 'grpc', 'h2', 'http', 'tcp'].includes(linkType)) {
+                    proxy.network = linkType;
+                } else if (linkType === 'xhttp') { // Special case for xhttp
+                    proxy.network = 'ws';
+                }
+            }
+
             if (paramsMap.has('smux')) proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' };
             else { proxy.smux = { enabled: false }; } // Default if not specified
 
             // Transport specific options (ws-opts, grpc-opts, http-opts, h2-opts)
-            // These would typically be complex JSON strings in URL parameters,
-            // which are not standard for VMess links. If they appear,
-            // they would need custom parsing similar to 'extra' in VLESS.
-            // For now, we'll assume they are not directly in the link params.
-            // If you encounter links with these, you'll need to extend this.
+            if (paramsMap.has('ws-path') || paramsMap.has('ws-headers') || paramsMap.has('ws-max-early-data') || paramsMap.has('ws-early-data-header-name') || paramsMap.has('ws-v2ray-http-upgrade') || paramsMap.has('ws-v2ray-http-upgrade-fast-open')) {
+                const wsOpts = {};
+                if (paramsMap.has('ws-path')) wsOpts.path = paramsMap.get('ws-path');
+                if (paramsMap.has('ws-headers')) {
+                    try { wsOpts.headers = JSON.parse(paramsMap.get('ws-headers')); } catch (e) { console.warn(`Invalid WS headers in VMess link: ${paramsMap.get('ws-headers')}`, e); }
+                }
+                if (paramsMap.has('ws-max-early-data')) wsOpts['max-early-data'] = parseInt(paramsMap.get('ws-max-early-data'));
+                if (paramsMap.has('ws-early-data-header-name')) wsOpts['early-data-header-name'] = paramsMap.get('ws-early-data-header-name');
+                if (paramsMap.has('ws-v2ray-http-upgrade')) wsOpts['v2ray-http-upgrade'] = paramsMap.get('ws-v2ray-http-upgrade').toLowerCase() === 'true';
+                if (paramsMap.has('ws-v2ray-http-upgrade-fast-open')) wsOpts['v2ray-http-upgrade-fast-open'] = paramsMap.get('ws-v2ray-http-upgrade-fast-open').toLowerCase() === 'true';
+                proxy['ws-opts'] = wsOpts;
+            }
+            if (paramsMap.has('grpc-service-name')) {
+                const grpcOpts = {};
+                grpcOpts['grpc-service-name'] = paramsMap.get('grpc-service-name');
+                proxy['grpc-opts'] = grpcOpts;
+            }
+            if (paramsMap.has('http-method') || paramsMap.has('http-path') || paramsMap.has('http-headers')) {
+                const httpOpts = {};
+                if (paramsMap.has('http-method')) httpOpts.method = paramsMap.get('http-method');
+                if (params.has('http-path')) {
+                    try {
+                        const httpPathStr = paramsMap.get('http-path');
+                        httpOpts.path = httpPathStr.startsWith('[') && httpPathStr.endsWith(']') ? JSON.parse(httpPathStr) : [httpPathStr];
+                    } catch (e) { console.warn(`Invalid HTTP path in VMess link: ${paramsMap.get('http-path')}`, e); }
+                }
+                if (params.has('http-headers')) {
+                    try { httpOpts.headers = JSON.parse(paramsMap.get('http-headers')); } catch (e) { console.warn(`Invalid HTTP headers in VMess link: ${paramsMap.get('http-headers')}`, e); }
+                }
+                proxy['http-opts'] = httpOpts;
+            }
+            if (paramsMap.has('h2-host') || paramsMap.has('h2-path')) {
+                const h2Opts = {};
+                if (params.has('h2-host')) {
+                    try {
+                        const h2HostStr = paramsMap.get('h2-host');
+                        h2Opts.host = h2HostStr.startsWith('[') && h2HostStr.endsWith(']') ? JSON.parse(h2HostStr) : [h2HostStr];
+                    } catch (e) { console.warn(`Invalid H2 host in VMess link: ${paramsMap.get('h2-host')}`, e); }
+                }
+                if (params.has('h2-path')) h2Opts.path = params.get('h2-path');
+                proxy['h2-opts'] = h2Opts;
+            }
+
 
             if (paramsMap.has('udp')) proxy.udp = paramsMap.get('udp').toLowerCase() === 'true'; // Override default UDP
+
+            // Common fields
+            if (paramsMap.has('ip-version')) proxy['ip-version'] = paramsMap.get('ip-version');
+            if (paramsMap.has('interface-name')) proxy['interface-name'] = paramsMap.get('interface-name');
+            if (paramsMap.has('routing-mark')) proxy['routing-mark'] = parseInt(paramsMap.get('routing-mark'));
+            if (paramsMap.has('tfo')) proxy.tfo = paramsMap.get('tfo').toLowerCase() === 'true';
+            if (paramsMap.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (paramsMap.has('dialer-proxy')) proxy['dialer-proxy'] = paramsMap.get('dialer-proxy');
+
 
             return proxy;
 
@@ -976,6 +1337,7 @@ class LinkParser {
             const url = new URL(link);
             const proxy = {
                 type: "snell",
+                name: url.hash ? decodeURIComponent(url.hash.substring(1)) : `Snell-${url.hostname}:${url.port}`,
                 server: url.hostname,
                 port: parseInt(url.port),
                 udp: true // Default to true, will be set to false for v1/v2 in generateMihomoProxyConfig
@@ -1000,8 +1362,18 @@ class LinkParser {
                 proxy['obfs-opts'] = {}; // Default to empty object if no obfs param
             }
 
-            // The proxy name is extracted from the hash part (#), otherwise a default name is created.
-            proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `Snell-${proxy.server}:${proxy.port}`;
+            // Common fields
+            if (params.has('udp')) proxy.udp = params.get('udp').toLowerCase() === 'true';
+            if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
+            if (params.has('interface-name')) proxy['interface-name'] = params.get('interface-name');
+            if (params.has('routing-mark')) proxy['routing-mark'] = parseInt(params.get('routing-mark'));
+            if (params.has('tfo')) proxy.tfo = params.get('tfo').toLowerCase() === 'true';
+            if (params.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (params.has('dialer-proxy')) proxy['dialer-proxy'] = params.get('dialer-proxy');
+            if (params.has('smux')) proxy.smux = { enabled: params.get('smux').toLowerCase() === 'true' };
+            else { proxy.smux = { enabled: false }; } // Default if not specified
+
+
             return proxy;
         } catch (e) {
             console.error("Error parsing Snell link:", link, e);
@@ -1022,6 +1394,7 @@ class LinkParser {
             const url = new URL(link);
             const proxy = {
                 type: "mieru",
+                name: url.hash ? decodeURIComponent(url.hash.substring(1)) : `Mieru-${url.hostname}:${url.port}`,
                 server: url.hostname,
                 udp: true // Default UDP relay for Mieru
             };
@@ -1042,8 +1415,16 @@ class LinkParser {
             if (params.has('multiplexing')) proxy.multiplexing = params.get('multiplexing');
             if (params.has('udp')) proxy.udp = params.get('udp').toLowerCase() === 'true';
 
-            // The proxy name is extracted from the hash part (#), otherwise a default name is created.
-            proxy.name = url.hash ? decodeURIComponent(url.hash.substring(1)) : `Mieru-${proxy.server}:${proxy.port || proxy['port-range']}`;
+            // Common fields
+            if (params.has('ip-version')) proxy['ip-version'] = params.get('ip-version');
+            if (params.has('interface-name')) proxy['interface-name'] = params.get('interface-name');
+            if (params.has('routing-mark')) proxy['routing-mark'] = parseInt(params.get('routing-mark'));
+            if (params.has('tfo')) proxy.tfo = params.get('tfo').toLowerCase() === 'true';
+            if (params.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (params.has('dialer-proxy')) proxy['dialer-proxy'] = params.get('dialer-proxy');
+            if (params.has('smux')) proxy.smux = { enabled: params.get('smux').toLowerCase() === 'true' };
+            else { proxy.smux = { enabled: false }; } // Default if not specified
+
             return proxy;
         } catch (e) {
             console.error("Error parsing Mieru link:", link, e);
@@ -1112,6 +1493,16 @@ class LinkParser {
             if (paramsMap.has('protoparam')) proxy['protocol-param'] = paramsMap.get('protoparam'); // protoparam in link
             if (paramsMap.has('udp')) proxy.udp = paramsMap.get('udp').toLowerCase() === 'true';
 
+            // Common fields
+            if (paramsMap.has('ip-version')) proxy['ip-version'] = paramsMap.get('ip-version');
+            if (paramsMap.has('interface-name')) proxy['interface-name'] = paramsMap.get('interface-name');
+            if (paramsMap.has('routing-mark')) proxy['routing-mark'] = parseInt(paramsMap.get('routing-mark'));
+            if (paramsMap.has('tfo')) proxy.tfo = paramsMap.get('tfo').toLowerCase() === 'true';
+            if (paramsMap.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (paramsMap.has('dialer-proxy')) proxy['dialer-proxy'] = params.get('dialer-proxy');
+            if (paramsMap.has('smux')) proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' };
+            else { proxy.smux = { enabled: false }; } // Default if not specified
+
             return proxy;
 
         } catch (e) {
@@ -1155,7 +1546,7 @@ class LinkParser {
             return LinkParser.parseMieruLink(link);
         } else if (link.startsWith("ssr://")) {
             return LinkParser.parseSSRLink(link);
-        } else if (link.startsWith("ss://")) { // Added
+        } else if (link.startsWith("ss://")) {
             return LinkParser.parseSSLink(link);
         }
         // TODO: You can also add other protocols here
@@ -1263,6 +1654,14 @@ class LinkParser {
             if (paramsMap.has('udp-over-tcp-version')) proxy["udp-over-tcp-version"] = parseInt(paramsMap.get('udp-over-tcp-version'));
             if (paramsMap.has('ip-version')) proxy['ip-version'] = paramsMap.get('ip-version');
             
+            // Added common fields from MiHoMo general proxy definition
+            if (paramsMap.has('interface-name')) proxy['interface-name'] = paramsMap.get('interface-name');
+            if (paramsMap.has('routing-mark')) proxy['routing-mark'] = parseInt(paramsMap.get('routing-mark'));
+            if (paramsMap.has('tfo')) proxy.tfo = paramsMap.get('tfo').toLowerCase() === 'true';
+            if (paramsMap.has('mptcp')) proxy.mptcp = params.get('mptcp').toLowerCase() === 'true';
+            if (paramsMap.has('dialer-proxy')) proxy['dialer-proxy'] = paramsMap.get('dialer-proxy');
+
+
             if (paramsMap.has('plugin')) {
                 proxy.plugin = paramsMap.get('plugin');
                 const pluginOpts = {};
@@ -1277,13 +1676,38 @@ class LinkParser {
                     if (paramsMap.has('v2ray-plugin-path')) pluginOpts.path = paramsMap.get('v2ray-plugin-path');
                     if (paramsMap.has('v2ray-plugin-skip-cert-verify')) pluginOpts['skip-cert-verify'] = paramsMap.get('v2ray-plugin-skip-cert-verify').toLowerCase() === 'true';
                     // Add more v2ray-plugin options as needed
+                } else if (proxy.plugin === 'shadow-tls') {
+                    if (paramsMap.has('shadow-tls-host')) pluginOpts.host = paramsMap.get('shadow-tls-host');
+                    if (paramsMap.has('shadow-tls-password')) pluginOpts.password = paramsMap.get('shadow-tls-password');
+                    if (paramsMap.has('shadow-tls-version')) pluginOpts.version = parseInt(paramsMap.get('shadow-tls-version'));
+                } else if (proxy.plugin === 'restls') {
+                    if (paramsMap.has('restls-host')) pluginOpts.host = paramsMap.get('restls-host');
+                    if (paramsMap.has('restls-password')) pluginOpts.password = paramsMap.get('restls-password');
+                    if (paramsMap.has('restls-version-hint')) pluginOpts['version-hint'] = paramsMap.get('restls-version-hint');
+                    if (paramsMap.has('restls-script')) pluginOpts['restls-script'] = paramsMap.get('restls-script');
                 }
-                // For other plugins (gost, shadow-tls, restls), you might need more specific parsing logic
-                // or assume they are configured via UI/manual JSON.
+                // For other plugins (gost), you might need more specific parsing logic
                 proxy['plugin-opts'] = pluginOpts;
             }
 
             if (paramsMap.has('smux')) proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' };
+            // Added SMUX sub-options for SS (if they appear in link, though less common)
+            if (proxy.smux.enabled) {
+                if (paramsMap.has('smux-protocol')) proxy.smux.protocol = paramsMap.get('smux-protocol');
+                if (paramsMap.has('smux-max-connections')) proxy.smux['max-connections'] = parseInt(paramsMap.get('smux-max-connections'));
+                if (paramsMap.has('smux-min-streams')) proxy.smux['min-streams'] = parseInt(paramsMap.get('smux-min-streams'));
+                if (paramsMap.has('smux-max-streams')) proxy.smux['max-streams'] = parseInt(paramsMap.get('smux-max-streams'));
+                if (paramsMap.has('smux-statistic')) proxy.smux.statistic = paramsMap.get('smux-statistic').toLowerCase() === 'true';
+                if (paramsMap.has('smux-only-tcp')) proxy.smux['only-tcp'] = paramsMap.get('smux-only-tcp').toLowerCase() === 'true';
+                if (paramsMap.has('smux-padding')) proxy.smux.padding = paramsMap.get('smux-padding').toLowerCase() === 'true';
+                if (paramsMap.has('smux-brutal-opts')) {
+                    try {
+                        proxy.smux['brutal-opts'] = JSON.parse(paramsMap.get('smux-brutal-opts'));
+                    } catch (e) {
+                        console.warn(`Invalid SMUX Brutal Options in SS link: ${paramsMap.get('smux-brutal-opts')}`, e);
+                    }
+                }
+            }
 
 
             return proxy;
