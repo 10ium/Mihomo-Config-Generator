@@ -299,7 +299,7 @@ new Vue({
                 }
             }
 
-            this.loadSavedProxies(); // رفرش لیست بعد از افزودن
+            this.fetchSavedProxies(); // رفرش لیست بعد از افزودن
             
             let message = '';
             if (addedCount > 0) {
@@ -381,20 +381,22 @@ new Vue({
         // --- مدیریت پروکسی‌های ذخیره شده ---
         fetchSavedProxies() {
             this.savedProxies = ConfigManager.getAllConfigs();
+            // انتخاب همه پروکسی‌ها به صورت پیش‌فرض هنگام بارگذاری
+            this.selectedMihomoProxyIds = this.savedProxies.map(proxy => proxy.id);
         },
         deleteProxy(id) {
-            if (!confirm('آیا مطمئن هستید که می‌خواهید این پروکسی را حذف کنید؟')) {
-                return;
-            }
-            if (ConfigManager.deleteConfig(id)) {
-                this.showMessage('پروکسی با موفقیت حذف شد.', 'success');
-                this.fetchSavedProxies();
-                // مطمئن شو که اگر حذف شد، از لیست انتخاب شده هم پاک بشه
-                this.selectedMihomoProxyIds = this.selectedMihomoProxyIds.filter(proxyId => proxyId !== id);
-                this.selectedProxiesForDeletion = this.selectedProxiesForDeletion.filter(proxyId => proxyId !== id);
-            } else {
-                this.showMessage('خطا در حذف پروکسی.', 'error');
-            }
+            // استفاده از یک modal سفارشی به جای confirm()
+            this.showConfirmModal('آیا مطمئن هستید که می‌خواهید این پروکسی را حذف کنید؟', () => {
+                if (ConfigManager.deleteConfig(id)) {
+                    this.showMessage('پروکسی با موفقیت حذف شد.', 'success');
+                    this.fetchSavedProxies();
+                    // مطمئن شو که اگر حذف شد، از لیست انتخاب شده هم پاک بشه
+                    this.selectedMihomoProxyIds = this.selectedMihomoProxyIds.filter(proxyId => proxyId !== id);
+                    this.selectedProxiesForDeletion = this.selectedProxiesForDeletion.filter(proxyId => proxyId !== id);
+                } else {
+                    this.showMessage('خطا در حذف پروکسی.', 'error');
+                }
+            });
         },
         // انتخاب همه پروکسی‌ها برای تولید کانفیگ
         selectAllProxiesForMihomo() {
@@ -418,25 +420,24 @@ new Vue({
                 this.showMessage('هیچ پروکسی برای حذف انتخاب نشده است.', 'info');
                 return;
             }
-            if (!confirm(`آیا مطمئن هستید که می‌خواهید ${this.selectedProxiesForDeletion.length} پروکسی انتخاب شده را حذف کنید؟`)) {
-                return;
-            }
-            let deletedCount = 0;
-            for (const id of this.selectedProxiesForDeletion) {
-                if (ConfigManager.deleteConfig(id)) {
-                    deletedCount++;
-                } else {
-                    console.warn(`خطا در حذف پروکسی با ID: ${id}`);
+            this.showConfirmModal(`آیا مطمئن هستید که می‌خواهید ${this.selectedProxiesForDeletion.length} پروکسی انتخاب شده را حذف کنید؟`, () => {
+                let deletedCount = 0;
+                for (const id of this.selectedProxiesForDeletion) {
+                    if (ConfigManager.deleteConfig(id)) {
+                        deletedCount++;
+                    } else {
+                        console.warn(`خطا در حذف پروکسی با ID: ${id}`);
+                    }
                 }
-            }
-            if (deletedCount > 0) {
-                this.showMessage(`${deletedCount} پروکسی با موفقیت حذف شد.`, 'success');
-                this.fetchSavedProxies(); // رفرش لیست
-                this.selectedMihomoProxyIds = this.selectedMihomoProxyIds.filter(id => !this.selectedProxiesForDeletion.includes(id));
-                this.selectedProxiesForDeletion = []; // خالی کردن لیست حذف
-            } else {
-                this.showMessage('خطا در حذف پروکسی‌ها.', 'error');
-            }
+                if (deletedCount > 0) {
+                    this.showMessage(`${deletedCount} پروکسی با موفقیت حذف شد.`, 'success');
+                    this.fetchSavedProxies(); // رفرش لیست
+                    this.selectedMihomoProxyIds = this.selectedMihomoProxyIds.filter(id => !this.selectedProxiesForDeletion.includes(id));
+                    this.selectedProxiesForDeletion = []; // خالی کردن لیست حذف
+                } else {
+                    this.showMessage('خطا در حذف پروکسی‌ها.', 'error');
+                }
+            });
         },
 
         // --- متدهای مربوط به تولید کانفیگ MiHoMo ---
@@ -451,10 +452,12 @@ new Vue({
         generateMihomoConfig() {
             if (!this.selectedMihomoProxyIds.length) {
                 this.showMessage('لطفاً حداقل یک پروکسی برای ساخت کانفیگ انتخاب کنید.', 'error');
+                this.generatedConfigContent = ''; // Clear content on error
                 return;
             }
             if (!this.selectedMihomoTemplateName) {
                 this.showMessage('لطفاً یک تمپلت قوانین MiHoMo را انتخاب کنید.', 'error');
+                this.generatedConfigContent = ''; // Clear content on error
                 return;
             }
 
@@ -477,9 +480,9 @@ new Vue({
             }
             
             if (!proxiesToInclude.length) {
-                 this.showMessage("هیچ پروکسی معتبری برای تولید کانفیگ MiHoMo یافت نشد. فیلترها را بررسی کنید.", 'error');
-                 this.generatedConfigContent = '';
-                 return;
+                this.showMessage("هیچ پروکسی معتبری برای تولید کانفیگ MiHoMo یافت نشد. فیلترها را بررسی کنید.", 'error');
+                this.generatedConfigContent = '';
+                return;
             }
 
             if (this.maxProxiesOutput !== null && this.maxProxiesOutput > 0 && proxiesToInclude.length > this.maxProxiesOutput) {
@@ -518,15 +521,9 @@ new Vue({
         },
         copyConfig() {
             if (this.generatedConfigContent) {
-                navigator.clipboard.writeText(this.generatedConfigContent)
-                    .then(() => {
-                        this.copySuccess = true;
-                        setTimeout(() => this.copySuccess = false, 2000);
-                    })
-                    .catch(err => {
-                        console.error('Could not copy text: ', err);
-                        this.showMessage('خطا در کپی کردن کانفیگ.', 'error');
-                    });
+                document.execCommand('copy'); // Use document.execCommand('copy') for better iframe compatibility
+                this.copySuccess = true;
+                setTimeout(() => this.copySuccess = false, 2000);
             }
         },
         selectAllProtocols() {
@@ -542,6 +539,33 @@ new Vue({
             this.newProxy = {};
             this.entryMethod = 'manual';
             this.selectedTemplate = null;
+        },
+        // متد جدید برای نمایش modal تایید
+        showConfirmModal(message, callback) {
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
+                    <p class="text-gray-800 text-lg mb-6">${message}</p>
+                    <div class="flex justify-center gap-4">
+                        <button id="confirm-yes" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                            بله
+                        </button>
+                        <button id="confirm-no" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                            خیر
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            document.getElementById('confirm-yes').onclick = () => {
+                callback();
+                document.body.removeChild(modal);
+            };
+            document.getElementById('confirm-no').onclick = () => {
+                document.body.removeChild(modal);
+            };
         }
     },
     watch: {
@@ -554,11 +578,13 @@ new Vue({
                 this.selectedMihomoProxyIds = [];
                 this.selectedProxiesForDeletion = [];
             } else if (newTab === 'generate-config') {
-                this.fetchSavedProxies();
+                this.fetchSavedProxies(); // لیست پروکسی‌ها را بارگذاری می‌کند
                 this.fetchMihomoTemplates();
                 this.generatedConfigContent = '';
-                this.maxProxiesOutput = null; 
-                this.selectedOutputProtocols = [...this.allProtocolTypes]; 
+                this.maxProxiesOutput = null;
+                this.selectedOutputProtocols = [...this.allProtocolTypes];
+                // این خط اطمینان می‌دهد که هنگام ورود به تب "ساخت کانفیگ"، همه پروکسی‌ها انتخاب شوند
+                this.selectedMihomoProxyIds = this.savedProxies.map(proxy => proxy.id);
             } else if (newTab === 'add-proxy') {
                 this.resetAddProxyForm();
                 this.detectedProxiesCount = 0;

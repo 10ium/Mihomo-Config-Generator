@@ -776,7 +776,7 @@ ntp:
   interval: 30
 `;
 
-// تمپلت بدون قانون (no_rules.yaml) - با تغییرات برای پشتیبانی از {{user_proxy_names_list}} در گروه‌ها
+// تمپلت بدون قانون (no_rules.yaml) - با تغییرات برای پشتیبانی از {{user_proxy_names_comma_separated}} در گروه‌ها
 const NO_RULES_TEMPLATE_CONTENT = `
 global-client-fingerprint: chrome
 port: {{mihomo_port}}
@@ -880,7 +880,7 @@ proxy-groups:
   - name: "All User Proxies"
     type: select
     proxies:
-      - {{user_proxy_names_list}}
+      - {{user_proxy_names_comma_separated}} # Changed from {{user_proxy_names_list}}
       - DIRECT
 
   - name: "بدون فیلترشکن 🛡️"
@@ -969,12 +969,17 @@ class MihomoConfigGenerator {
         // هر نام در یک خط جداگانه با ایندنت 6 فاصله (برای هماهنگی با -)
         const proxyNamesFormattedForGroups = userProxies.map(p => `      - "${p.name}"`).join('\n');
         
+        // ساخت لیست نام پروکسی‌ها با فرمت کاما-جدا شده: "Proxy Name 1", "Proxy Name 2"
+        const proxyNamesCommaSeparated = userProxies.map(p => `"${p.name}"`).join(', ');
+
         // اگر لیست پروکسی‌ها خالی باشد، فقط DIRECT را قرار می‌دهیم
-        // اگر تمپلت "no_rules" باشد و no_rules فقط DIRECT داشته باشد
-        const finalProxyNamesListForGroups = userProxies.length > 0 ? proxyNamesFormattedForGroups : '      - DIRECT'; 
+        const finalProxyNamesListForGroups = userProxies.length > 0 ? proxyNamesFormattedForGroups : '      - DIRECT';
+        const finalProxyNamesCommaSeparated = userProxies.length > 0 ? proxyNamesCommaSeparated : 'DIRECT';
         
         // جایگزینی تمام occurrences از {{user_proxy_names_list}}
         templateContent = templateContent.replace(/{{user_proxy_names_list}}/g, finalProxyNamesListForGroups);
+        // جایگزینی تمام occurrences از {{user_proxy_names_comma_separated}}
+        templateContent = templateContent.replace(/{{user_proxy_names_comma_separated}}/g, finalProxyNamesCommaSeparated);
 
 
         return templateContent;
