@@ -1,4 +1,4 @@
-// protocols/VLESSProxy.js
+// protocols/VLESSProxy.js (کد اصلاح شده)
 
 import BaseProtocol from './BaseProtocol.js';
 
@@ -84,7 +84,7 @@ class VLESSProxy extends BaseProtocol {
                 label: "ALPN (JSON Array)",
                 type: "textarea",
                 placeholder: 'مثال: ["h2", "http/1.1"]',
-                default: '["h2", "http/1.1"]',
+                default: ["h2", "http/1.1"], // Fixed: Changed default to actual array (Issue 3)
                 required: false,
                 dependency: { field: "tls", value: true }
             },
@@ -118,7 +118,7 @@ class VLESSProxy extends BaseProtocol {
                 label: "Reality Options (JSON)",
                 type: "textarea",
                 placeholder: 'مثال: {"public-key": "...", "short-id": "..."}',
-                default: "{}",
+                default: {}, // Fixed: Changed default to actual object (Issue 3)
                 required: false,
                 dependency: { field: "tls", value: true }
             },
@@ -144,7 +144,7 @@ class VLESSProxy extends BaseProtocol {
                 label: "WebSocket Options (JSON)",
                 type: "textarea",
                 placeholder: 'مثال: {"path": "/your_path", "headers": {"Host": "your-host.com"}}',
-                default: "{}",
+                default: {}, // Fixed: Changed default to actual object (Issue 3)
                 required: false,
                 dependency: { field: "network", value: "ws" }
             },
@@ -153,7 +153,7 @@ class VLESSProxy extends BaseProtocol {
                 label: "gRPC Options (JSON)",
                 type: "textarea",
                 placeholder: 'مثال: {"grpc-service-name": "YourService"}',
-                default: "{}",
+                default: {}, // Fixed: Changed default to actual object (Issue 3)
                 required: false,
                 dependency: { field: "network", value: "grpc" }
             }
@@ -175,15 +175,15 @@ class VLESSProxy extends BaseProtocol {
                     network: "tcp",
                     tls: true,
                     servername: "your-server.com",
-                    alpn: '["h2", "http/1.1"]',
+                    alpn: ["h2", "http/1.1"], // Fixed: Changed to actual array (Issue 3)
                     fingerprint: "",
                     "client-fingerprint": "chrome",
                     "skip-cert-verify": false,
-                    "reality-opts": "{}",
+                    "reality-opts": {}, // Fixed: Changed to actual object (Issue 3)
                     smux: false,
                     udp: true,
-                    "ws-opts": "{}",
-                    "grpc-opts": "{}"
+                    "ws-opts": {}, // Fixed: Changed to actual object (Issue 3)
+                    "grpc-opts": {} // Fixed: Changed to actual object (Issue 3)
                 }
             },
             {
@@ -199,15 +199,15 @@ class VLESSProxy extends BaseProtocol {
                     network: "ws",
                     tls: true,
                     servername: "your-server.com",
-                    alpn: '["h2", "http/1.1"]',
+                    alpn: ["h2", "http/1.1"], // Fixed: Changed to actual array (Issue 3)
                     fingerprint: "",
                     "client-fingerprint": "chrome",
                     "skip-cert-verify": false,
-                    "reality-opts": "{}",
+                    "reality-opts": {}, // Fixed: Changed to actual object (Issue 3)
                     smux: false,
                     udp: true,
-                    "ws-opts": '{"path": "/your_path", "headers": {"Host": "your-server.com"}}',
-                    "grpc-opts": "{}"
+                    "ws-opts": {"path": "/your_path", "headers": {"Host": "your-server.com"}}, // Fixed: Changed to actual object (Issue 3)
+                    "grpc-opts": {} // Fixed: Changed to actual object (Issue 3)
                 }
             },
             {
@@ -223,15 +223,15 @@ class VLESSProxy extends BaseProtocol {
                     network: "tcp",
                     tls: true,
                     servername: "your-server.com",
-                    alpn: '["h2", "http/1.1"]',
+                    alpn: ["h2", "http/1.1"], // Fixed: Changed to actual array (Issue 3)
                     fingerprint: "",
                     "client-fingerprint": "chrome",
                     "skip-cert-verify": false,
-                    "reality-opts": '{"public-key": "YOUR_PUBLIC_KEY", "short-id": "YOUR_SHORT_ID"}',
+                    "reality-opts": {"public-key": "YOUR_PUBLIC_KEY", "short-id": "YOUR_SHORT_ID"}, // Fixed: Changed to actual object (Issue 3)
                     smux: false,
                     udp: true,
-                    "ws-opts": "{}",
-                    "grpc-opts": "{}"
+                    "ws-opts": {}, // Fixed: Changed to actual object (Issue 3)
+                    "grpc-opts": {} // Fixed: Changed to actual object (Issue 3)
                 }
             }
         ];
@@ -268,7 +268,8 @@ class VLESSProxy extends BaseProtocol {
             }
             if (userConfig.alpn && userConfig.alpn !== '[]') {
                 try {
-                    const parsedAlpn = JSON.parse(userConfig.alpn);
+                    // userConfig.alpn ممکن است از LinkParser به صورت آرایه یا از UI به صورت رشته JSON باشد
+                    const parsedAlpn = typeof userConfig.alpn === 'string' ? JSON.parse(userConfig.alpn) : userConfig.alpn;
                     if (Array.isArray(parsedAlpn)) {
                         mihomoConfig.alpn = parsedAlpn;
                     } else {
@@ -289,7 +290,8 @@ class VLESSProxy extends BaseProtocol {
             }
             if (userConfig["reality-opts"] && userConfig["reality-opts"] !== '{}') {
                 try {
-                    const parsedRealityOpts = JSON.parse(userConfig["reality-opts"]);
+                    // userConfig["reality-opts"] ممکن است از LinkParser به صورت شیء یا از UI به صورت رشته JSON باشد
+                    const parsedRealityOpts = typeof userConfig["reality-opts"] === 'string' ? JSON.parse(userConfig["reality-opts"]) : userConfig["reality-opts"];
                     if (typeof parsedRealityOpts === 'object' && parsedRealityOpts !== null) {
                         mihomoConfig["reality-opts"] = parsedRealityOpts;
                     } else {
@@ -304,7 +306,8 @@ class VLESSProxy extends BaseProtocol {
         // Network specific options
         if (userConfig.network === 'ws' && userConfig['ws-opts'] && userConfig['ws-opts'] !== '{}') {
             try {
-                const parsedWsOpts = JSON.parse(userConfig['ws-opts']);
+                // userConfig['ws-opts'] ممکن است از LinkParser به صورت شیء یا از UI به صورت رشته JSON باشد
+                const parsedWsOpts = typeof userConfig['ws-opts'] === 'string' ? JSON.parse(userConfig['ws-opts']) : userConfig['ws-opts'];
                 if (typeof parsedWsOpts === 'object' && parsedWsOpts !== null) {
                     mihomoConfig['ws-opts'] = parsedWsOpts;
                 } else {
@@ -316,7 +319,8 @@ class VLESSProxy extends BaseProtocol {
         }
         if (userConfig.network === 'grpc' && userConfig['grpc-opts'] && userConfig['grpc-opts'] !== '{}') {
             try {
-                const parsedGrpcOpts = JSON.parse(userConfig['grpc-opts']);
+                // userConfig['grpc-opts'] ممکن است از LinkParser به صورت شیء یا از UI به صورت رشته JSON باشد
+                const parsedGrpcOpts = typeof userConfig['grpc-opts'] === 'string' ? JSON.parse(userConfig['grpc-opts']) : userConfig['grpc-opts'];
                 if (typeof parsedGrpcOpts === 'object' && parsedGrpcOpts !== null) {
                     mihomoConfig['grpc-opts'] = parsedGrpcOpts;
                 } else {
@@ -328,8 +332,13 @@ class VLESSProxy extends BaseProtocol {
         }
         
         // SMUX option (needs to be an object { enabled: boolean })
-        // userConfig.smux از UI یا LinkParser به صورت boolean می‌آید
-        mihomoConfig.smux = { enabled: Boolean(userConfig.smux) }; // اطمینان از اینکه همیشه یک boolean است
+        // userConfig.smux از UI یا LinkParser به صورت boolean یا {enabled: boolean} می‌آید
+        // اطمینان حاصل می‌کنیم که همیشه به {enabled: boolean} تبدیل شود
+        if (typeof userConfig.smux === 'object' && userConfig.smux !== null && typeof userConfig.smux.enabled === 'boolean') {
+            mihomoConfig.smux = userConfig.smux;
+        } else {
+            mihomoConfig.smux = { enabled: Boolean(userConfig.smux) };
+        }
 
         // IP Version
         if (userConfig["ip-version"] && userConfig["ip-version"] !== "dual") {

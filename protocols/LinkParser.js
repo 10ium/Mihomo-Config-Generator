@@ -1,4 +1,4 @@
-// protocols/LinkParser.js
+// protocols/LinkParser.js (کد اصلاح شده)
 
 /**
  * کلاس LinkParser مسئول تجزیه لینک‌های اشتراک پروکسی از پروتکل‌های مختلف است.
@@ -217,11 +217,17 @@ class LinkParser {
             if (paramsMap.has('ip-version')) proxy['ip-version'] = paramsMap.get('ip-version');
             // smux در MiHoMo یک شیء با enabled: true/false است، نه فقط یک boolean
             if (paramsMap.has('smux')) {
-                proxy.smux = paramsMap.get('smux').toLowerCase() === 'true'; // Keep as boolean here
+                proxy.smux = { enabled: paramsMap.get('smux').toLowerCase() === 'true' }; // Fix: Store as object {enabled: boolean}
             } else {
-                proxy.smux = false; // Explicitly set to false if not in link
+                proxy.smux = { enabled: false }; // Explicitly set to false if not in link
             }
 
+            // Fix: Handle 'extra' parameter (Issue 1)
+            // As 'extra' is not a standard Mihomo VLESS field and its sub-fields
+            // are not directly mappable without more context, we will warn about it.
+            if (paramsMap.has('extra')) {
+                console.warn(`پارامتر 'extra' در لینک VLESS یافت شد اما به دلیل عدم پشتیبانی مستقیم در MiHoMo نادیده گرفته شد: ${paramsMap.get('extra')}`);
+            }
 
             return proxy;
 

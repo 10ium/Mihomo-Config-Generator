@@ -1,9 +1,9 @@
-// app.js
+// app.js (کد اصلاح شده)
 
 import ProtocolManager from './protocols/ProtocolManager.js';
 import ConfigManager from './ConfigManager.js';
 import MihomoConfigGenerator from './MihomoConfigGenerator.js';
-import LinkParser from './protocols/LinkParser.js'; // <-- اضافه شده
+import LinkParser from './protocols/LinkParser.js';
 
 new Vue({
     el: '#app',
@@ -102,7 +102,12 @@ new Vue({
                     // مقداردهی اولیه newProxy با مقادیر پیش‌فرض فیلدها
                     this.currentProtocolFields.forEach(field => {
                         if (field.default !== undefined) {
-                            this.$set(this.newProxy, field.id, field.default);
+                            // اگر فیلد textarea است و مقدار پیش‌فرض آن شیء یا آرایه است، آن را به رشته JSON تبدیل کن
+                            if (field.type === 'textarea' && (typeof field.default === 'object' && field.default !== null || Array.isArray(field.default))) {
+                                this.$set(this.newProxy, field.id, JSON.stringify(field.default));
+                            } else {
+                                this.$set(this.newProxy, field.id, field.default);
+                            }
                         } else {
                             this.$set(this.newProxy, field.id, field.type === 'number' ? null : '');
                         }
@@ -120,9 +125,21 @@ new Vue({
                 this.currentProtocolFields.forEach(field => {
                     const templateValue = this.selectedTemplate.values[field.id];
                     if (templateValue !== undefined) {
-                        this.$set(updatedProxy, field.id, field.type === 'checkbox' ? Boolean(templateValue) : templateValue);
+                        if (field.type === 'checkbox') {
+                            this.$set(updatedProxy, field.id, Boolean(templateValue));
+                        } else if (field.type === 'textarea' && (typeof templateValue === 'object' && templateValue !== null || Array.isArray(templateValue))) {
+                            this.$set(updatedProxy, field.id, JSON.stringify(templateValue));
+                        } else {
+                            this.$set(updatedProxy, field.id, templateValue);
+                        }
                     } else if (field.default !== undefined) {
-                        this.$set(updatedProxy, field.id, field.type === 'checkbox' ? Boolean(field.default) : field.default);
+                        if (field.type === 'checkbox') {
+                            this.$set(updatedProxy, field.id, Boolean(field.default));
+                        } else if (field.type === 'textarea' && (typeof field.default === 'object' && field.default !== null || Array.isArray(field.default))) {
+                            this.$set(updatedProxy, field.id, JSON.stringify(field.default));
+                        } else {
+                            this.$set(updatedProxy, field.id, field.default);
+                        }
                     } else {
                         this.$set(updatedProxy, field.id, field.type === 'number' ? null : '');
                     }
@@ -249,22 +266,30 @@ new Vue({
                         else if (field.type === 'number') {
                             configData[field.id] = parseInt(proxy[mihomoKey]);
                         }
-                        // برای headers, alpn, reality-opts, ws-opts, grpc-opts باید از JSON.stringify استفاده کنیم
+                        // برای headers, alpn, reality-opts, ws-opts, grpc-opts, smux باید از JSON.stringify استفاده کنیم
                         // اگر مقدار از قبل یک آبجکت است، آن را به رشته JSON تبدیل می‌کنیم.
-                        else if (['headers', 'alpn', 'reality-opts', 'ws-opts', 'grpc-opts'].includes(field.id) && typeof proxy[mihomoKey] === 'object') {
+                        else if (['headers', 'alpn', 'reality-opts', 'ws-opts', 'grpc-opts', 'smux'].includes(field.id) && typeof proxy[mihomoKey] === 'object') {
                             configData[field.id] = JSON.stringify(proxy[mihomoKey]);
                         }
                         else {
                             configData[field.id] = proxy[mihomoKey];
                         }
                     } else if (field.default !== undefined) {
-                        configData[field.id] = field.default;
+                        // اگر مقدار پیش‌فرض یک شیء/آرایه است، آن را به رشته JSON تبدیل کن
+                        if (field.type === 'textarea' && (typeof field.default === 'object' && field.default !== null || Array.isArray(field.default))) {
+                            configData[field.id] = JSON.stringify(field.default);
+                        } else if (field.type === 'checkbox') { // Ensure boolean defaults are handled
+                            configData[field.id] = Boolean(field.default);
+                        }
+                        else {
+                            configData[field.id] = field.default;
+                        }
                     }
                 });
 
                 // تنظیم نام پیش فرض در صورت نبود
                 if (!configData.name) {
-                    configData.name = `Auto-Imported-${protocolInstance.getName()}-${configData.server}:${configData.port}`;
+                    configData.name = `Auto-Imported-${protocolInstance.getName()}-${configData.server}:${configData.name || configData.port}`;
                 }
 
                 // افزودن به لیست ذخیره شده (ConfigManager مسئول بررسی تکراری بودن است)
@@ -440,9 +465,26 @@ new Vue({
         },
         copyConfig() {
             if (this.generatedConfigContent) {
-                document.execCommand('copy'); // Use document.execCommand('copy') for better iframe compatibility
-                this.copySuccess = true;
-                setTimeout(() => this.copySuccess = false, 2000);
+                // Create a temporary textarea to hold the content
+                const textarea = document.createElement('textarea');
+                textarea.value = this.generatedConfigContent;
+                textarea.style.position = 'fixed'; // Prevents scrolling to bottom of page
+                textarea.style.opacity = 0; // Hide it
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select(); // Select the content
+
+                try {
+                    document.execCommand('copy'); // Use document.execCommand('copy') for better iframe compatibility
+                    this.copySuccess = true;
+                    this.showMessage('کانفیگ با موفقیت کپی شد!', 'success');
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                    this.showMessage('خطا در کپی کردن کانفیگ.', 'error');
+                } finally {
+                    document.body.removeChild(textarea); // Clean up the temporary textarea
+                    setTimeout(() => this.copySuccess = false, 2000);
+                }
             }
         },
         selectAllProtocols() {
@@ -462,7 +504,7 @@ new Vue({
         // متد جدید برای نمایش modal تایید
         showConfirmModal(message, callback) {
             const modal = document.createElement('div');
-            modal.className = 'fixed inset-0 bg-gray-600 bg-opacity50 flex items-center justify-center z-50';
+            modal.className = 'fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-50'; // Fixed typo: bg-opacity50 -> bg-opacity-50
             modal.innerHTML = `
                 <div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
                     <p class="text-gray-800 text-lg mb-6">${message}</p>
